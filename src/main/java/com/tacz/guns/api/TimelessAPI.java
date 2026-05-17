@@ -1,0 +1,139 @@
+package com.tacz.guns.api;
+
+import com.tacz.guns.api.client.other.IThirdPersonAnimation;
+import com.tacz.guns.api.client.other.ThirdPersonManager;
+import com.tacz.guns.api.item.IGun;
+import com.tacz.guns.client.resource.ClientIndexManager;
+import com.tacz.guns.client.resource.GunDisplayInstance;
+import com.tacz.guns.client.resource.index.ClientAmmoIndex;
+import com.tacz.guns.client.resource.index.ClientAttachmentIndex;
+import com.tacz.guns.client.resource.index.ClientBlockIndex;
+import com.tacz.guns.client.resource.index.ClientGunIndex;
+import com.tacz.guns.crafting.GunSmithTableRecipe;
+import com.tacz.guns.resource.CommonAssetsManager;
+import com.tacz.guns.resource.index.CommonAmmoIndex;
+import com.tacz.guns.resource.index.CommonAttachmentIndex;
+import com.tacz.guns.resource.index.CommonBlockIndex;
+import com.tacz.guns.resource.index.CommonGunIndex;
+import net.minecraft.resources.Identifier;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.crafting.RecipeType;
+
+import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
+
+public final class TimelessAPI {
+    public static Optional<GunDisplayInstance> getGunDisplay(ItemStack stack) {
+        if (stack.getItem() instanceof IGun iGun) {
+            Identifier gunId = iGun.getGunId(stack);
+            if (getCommonGunIndex(gunId).isEmpty()) {
+                return Optional.empty();
+            }
+            Identifier displayId = iGun.getGunDisplayId(stack);
+            if (displayId.equals(DefaultAssets.DEFAULT_GUN_DISPLAY_ID)) {
+                return getClientGunIndex(gunId).map(ClientGunIndex::getDefaultDisplay);
+            } else {
+                return getGunDisplay(displayId, gunId);
+            }
+        }
+        return Optional.empty();
+    }
+
+    public static Optional<ClientGunIndex> getClientGunIndex(Identifier gunId) {
+        return Optional.ofNullable(ClientIndexManager.GUN_INDEX.get(gunId));
+    }
+
+    public static Optional<GunDisplayInstance> getGunDisplay(Identifier displayId, Identifier fallbackGunId) {
+        if (displayId == null || displayId.equals(DefaultAssets.DEFAULT_GUN_DISPLAY_ID)) {
+            return getClientGunIndex(fallbackGunId).map(ClientGunIndex::getDefaultDisplay);
+        }
+
+        GunDisplayInstance instance = ClientIndexManager.GUN_DISPLAY.get(displayId);
+        if (instance == null) {
+            return getClientGunIndex(fallbackGunId).map(ClientGunIndex::getDefaultDisplay);
+        }
+        return Optional.of(instance);
+    }
+
+    public static Optional<ClientAttachmentIndex> getClientAttachmentIndex(Identifier attachmentId) {
+        return Optional.ofNullable(ClientIndexManager.ATTACHMENT_INDEX.get(attachmentId));
+    }
+
+    public static Optional<ClientAmmoIndex> getClientAmmoIndex(Identifier ammoId) {
+        return Optional.ofNullable(ClientIndexManager.AMMO_INDEX.get(ammoId));
+    }
+
+    public static Optional<ClientBlockIndex> getClientBlockIndex(Identifier blockId) {
+        return Optional.ofNullable(ClientIndexManager.BLOCK_INDEX.get(blockId));
+    }
+
+    public static Set<Map.Entry<Identifier, ClientGunIndex>> getAllClientGunIndex() {
+        return ClientIndexManager.getAllGuns();
+    }
+
+    public static Set<Map.Entry<Identifier, ClientAmmoIndex>> getAllClientAmmoIndex() {
+        return ClientIndexManager.getAllAmmo();
+    }
+
+    public static Set<Map.Entry<Identifier, ClientAttachmentIndex>> getAllClientAttachmentIndex() {
+        return ClientIndexManager.getAllAttachments();
+    }
+
+    public static Optional<CommonBlockIndex> getCommonBlockIndex(Identifier blockId) {
+        return Optional.ofNullable(CommonAssetsManager.get().getBlockIndex(blockId));
+    }
+
+    public static Optional<CommonGunIndex> getCommonGunIndex(Identifier gunId) {
+        return Optional.ofNullable(CommonAssetsManager.get().getGunIndex(gunId));
+    }
+
+    public static Optional<CommonAttachmentIndex> getCommonAttachmentIndex(Identifier attachmentId) {
+        return Optional.ofNullable(CommonAssetsManager.get().getAttachmentIndex(attachmentId));
+    }
+
+    public static Optional<CommonAmmoIndex> getCommonAmmoIndex(Identifier ammoId) {
+        return Optional.ofNullable(CommonAssetsManager.get().getAmmoIndex(ammoId));
+    }
+
+    /**
+     * @deprecated
+     * 荳榊・菴ｿ逕ｨ迢ｬ遶狗噪驟肴婿蜷梧ｭ･・瑚梧弍菴ｿ逕ｨ蜴溽沿逧・・譁ｹ蜉霓ｽ蝎ｨ<br/>
+     * 隸ｷ逕ｨ {@link net.minecraft.world.item.crafting.RecipeManager#byKey(Identifier)}蜥鶏@link net.minecraft.world.item.crafting.RecipeManager#getAllRecipesFor(RecipeType)}闔ｷ蜿夜・譁ｹ
+     */
+    @Deprecated
+    public static Optional<GunSmithTableRecipe> getRecipe(Identifier recipeId) {
+        return Optional.empty();
+    }
+
+    public static Set<Map.Entry<Identifier, CommonBlockIndex>> getAllCommonBlockIndex() {
+        return CommonAssetsManager.get().getAllBlocks();
+    }
+
+    public static Set<Map.Entry<Identifier, CommonGunIndex>> getAllCommonGunIndex() {
+        return CommonAssetsManager.get().getAllGuns();
+    }
+
+    public static Set<Map.Entry<Identifier, CommonAmmoIndex>> getAllCommonAmmoIndex() {
+        return CommonAssetsManager.get().getAllAmmos();
+    }
+
+    public static Set<Map.Entry<Identifier, CommonAttachmentIndex>> getAllCommonAttachmentIndex() {
+        return CommonAssetsManager.get().getAllAttachments();
+    }
+
+    /**
+     * @deprecated
+     * 荳榊・菴ｿ逕ｨ迢ｬ遶狗噪驟肴婿蜷梧ｭ･・瑚梧弍菴ｿ逕ｨ蜴溽沿逧・・譁ｹ蜉霓ｽ蝎ｨ<br/>
+     * 隸ｷ逕ｨ {@link net.minecraft.world.item.crafting.RecipeManager#byKey(Identifier)}蜥鶏@link net.minecraft.world.item.crafting.RecipeManager#getAllRecipesFor(RecipeType)}闔ｷ蜿夜・譁ｹ
+     */
+    @Deprecated
+    public static Map<Identifier, GunSmithTableRecipe> getAllRecipes() {
+        return Map.of();
+    }
+
+    public static void registerThirdPersonAnimation(String name, IThirdPersonAnimation animation) {
+        ThirdPersonManager.register(name, animation);
+    }
+}
+

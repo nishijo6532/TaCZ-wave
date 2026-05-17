@@ -1,0 +1,37 @@
+# eclipse
+bin
+*.launch
+.settings
+.metadata
+.classpath
+.project
+
+# idea
+out
+*.ipr
+*.iws
+*.iml
+.idea
+
+# gradle
+build
+.gradle
+
+# other
+eclipse
+run
+
+# Files from Forge MDK
+forge_README.txt
+forge*changelog.txt
+
+deep-research-report.md
+deep-research-report2.md
+deep-research-report3.md
+logs
+deep-research-report4.md
+deep-reserch-report-5-edited.md
+deep-research-report6.md
+/logs
+deep-research-report7.md
+deep-research-report8.md

@@ -1,0 +1,51 @@
+package com.tacz.guns.client.input;
+
+import com.mojang.blaze3d.platform.InputConstants;
+import com.tacz.guns.api.client.gameplay.IClientPlayerGunOperator;
+import com.tacz.guns.util.KeyMappingCompat;
+import net.minecraft.client.KeyMapping;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.player.LocalPlayer;
+import net.minecraftforge.api.distmarker.Dist;
+import net.minecraftforge.client.event.InputEvent;
+import net.minecraftforge.client.settings.KeyConflictContext;
+import net.minecraftforge.client.settings.KeyModifier;
+import net.minecraftforge.eventbus.api.listener.SubscribeEvent;
+import net.minecraftforge.fml.common.Mod;
+import org.lwjgl.glfw.GLFW;
+
+import static com.tacz.guns.util.InputExtraCheck.isInGame;
+
+@Mod.EventBusSubscriber(value = Dist.CLIENT)
+public class InspectKey {
+    public static final KeyMapping INSPECT_KEY = KeyMappingCompat.create("key.tacz.inspect.desc",
+            KeyConflictContext.IN_GAME,
+            KeyModifier.NONE,
+            InputConstants.Type.KEYSYM,
+            GLFW.GLFW_KEY_H,
+            "key.category.tacz");
+
+    @SubscribeEvent
+    public static void onInspectPress(InputEvent.Key event) {
+        if (isInGame() && event.getAction() == GLFW.GLFW_PRESS && KeyMappingCompat.matches(INSPECT_KEY, event)) {
+            LocalPlayer player = Minecraft.getInstance().player;
+            if (player == null || player.isSpectator()) {
+                return;
+            }
+            IClientPlayerGunOperator.fromLocalPlayer(player).inspect();
+        }
+    }
+
+    public static boolean onInspectControllerPress(boolean isPress) {
+        if (isInGame() && isPress) {
+            LocalPlayer player = Minecraft.getInstance().player;
+            if (player == null || player.isSpectator()) {
+                return false;
+            }
+            IClientPlayerGunOperator.fromLocalPlayer(player).inspect();
+            return true;
+        }
+        return false;
+    }
+}
+

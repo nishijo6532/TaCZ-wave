@@ -1,0 +1,218 @@
+package com.tacz.guns.resource.network;
+
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParseException;
+import com.google.gson.reflect.TypeToken;
+import com.tacz.guns.GunMod;
+import com.tacz.guns.api.modifier.JsonProperty;
+import com.tacz.guns.resource.CommonAssetsManager;
+import com.tacz.guns.resource.ICommonResourceProvider;
+import com.tacz.guns.resource.filter.RecipeFilter;
+import com.tacz.guns.resource.index.CommonAmmoIndex;
+import com.tacz.guns.resource.index.CommonAttachmentIndex;
+import com.tacz.guns.resource.index.CommonBlockIndex;
+import com.tacz.guns.resource.index.CommonGunIndex;
+import com.tacz.guns.resource.modifier.AttachmentPropertyManager;
+import com.tacz.guns.resource.pojo.data.attachment.AttachmentData;
+import com.tacz.guns.resource.pojo.data.block.BlockData;
+import com.tacz.guns.resource.pojo.data.gun.GunData;
+import com.tacz.guns.util.AllowAttachmentTagMatcher;
+import net.minecraft.resources.Identifier;
+import org.jetbrains.annotations.Nullable;
+import org.luaj.vm2.LuaTable;
+
+import java.util.*;
+
+/**
+ * 鄂醍ｻ應ｽ咲ｽｮ逧・ｼ灘ｭ・br/>
+ * 逕ｨ莠主ｭ伜お莉守ｽ醍ｻ懆執蜿也噪謨ｰ謐ｮ
+ */
+public enum CommonNetworkCache implements ICommonResourceProvider {
+    INSTANCE;
+
+    public Map<Identifier, GunData> gunData = new HashMap<>();
+    public Map<Identifier, AttachmentData> attachmentData = new HashMap<>();
+    public Map<Identifier, RecipeFilter> recipeFilter = new HashMap<>();
+    public Map<Identifier, BlockData> blockData = new HashMap<>();
+    public Map<Identifier, CommonGunIndex> gunIndex = new HashMap<>();
+    public Map<Identifier, CommonAmmoIndex> ammoIndex = new HashMap<>();
+    public Map<Identifier, CommonAttachmentIndex> attachmentIndex = new HashMap<>();
+    public Map<Identifier, CommonBlockIndex> blockIndex = new HashMap<>();
+    public Map<Identifier, Set<String>> attachmentTags = new HashMap<>();
+    public Map<Identifier, Set<String>> allowAttachmentTags = new HashMap<>();
+
+    @Nullable
+    @Override
+    public GunData getGunData(Identifier id) {
+        return gunData.get(id);
+    }
+
+    @Nullable
+    @Override
+    public AttachmentData getAttachmentData(Identifier attachmentId) {
+        return attachmentData.get(attachmentId);
+    }
+
+    @Nullable
+    @Override
+    public BlockData getBlockData(Identifier id) {
+        return blockData.get(id);
+    }
+
+    @Nullable
+    @Override
+    public RecipeFilter getRecipeFilter(Identifier id) {
+        return recipeFilter.get(id);
+    }
+
+    @Nullable
+    @Override
+    public CommonGunIndex getGunIndex(Identifier id) {
+        return gunIndex.get(id);
+    }
+
+    @Override
+    public @Nullable CommonAmmoIndex getAmmoIndex(Identifier ammoId) {
+        return ammoIndex.get(ammoId);
+    }
+
+    @Override
+    public @Nullable CommonAttachmentIndex getAttachmentIndex(Identifier attachmentId) {
+        return attachmentIndex.get(attachmentId);
+    }
+
+    @Override
+    public @Nullable CommonBlockIndex getBlockIndex(Identifier blockId) {
+        return blockIndex.get(blockId);
+    }
+
+    @Override
+    public @Nullable LuaTable getScript(Identifier scriptId) {
+        return null; // 閼壽悽荳埼怙隕∝酔豁･
+    }
+
+    @Override
+    public Set<Map.Entry<Identifier, CommonGunIndex>> getAllGuns() {
+        return gunIndex.entrySet();
+    }
+
+    @Override
+    public Set<Map.Entry<Identifier, CommonAmmoIndex>> getAllAmmos() {
+        return ammoIndex.entrySet();
+    }
+
+    @Override
+    public Set<Map.Entry<Identifier, CommonAttachmentIndex>> getAllAttachments() {
+        return attachmentIndex.entrySet();
+    }
+
+    @Override
+    public Set<Map.Entry<Identifier, CommonBlockIndex>> getAllBlocks() {
+        return blockIndex.entrySet();
+    }
+
+    @Override
+    public Set<String> getAttachmentTags(Identifier registryName) {
+        return attachmentTags.get(registryName);
+    }
+
+    @Override
+    public Set<String> getAllowAttachmentTags(Identifier registryName) {
+        return allowAttachmentTags.get(registryName);
+    }
+
+    public void fromNetwork(Map<DataType, Map<Identifier, String>> cache) {
+        gunData.clear();
+        attachmentData.clear();
+        gunIndex.clear();
+        ammoIndex.clear();
+        attachmentIndex.clear();
+        blockIndex.clear();
+        recipeFilter.clear();
+        blockData.clear();
+
+        attachmentTags.clear();
+        allowAttachmentTags.clear();
+        // 蟒ｶ蜷主､・炊
+        Map<DataType, Map<Identifier, String>> delayed = new HashMap<>();
+        for (Map.Entry<DataType, Map<Identifier, String>> entry : cache.entrySet()) {
+            switch (entry.getKey()) {
+                case GUN_INDEX:
+                case AMMO_INDEX:
+                case ATTACHMENT_INDEX:
+                case BLOCK_INDEX:
+                    delayed.put(entry.getKey(), entry.getValue());
+                    break;
+                default: fromNetwork(entry.getKey(), entry.getValue());
+            }
+        }
+        for (Map.Entry<DataType, Map<Identifier, String>> entry : delayed.entrySet()) {
+            fromNetwork(entry.getKey(), entry.getValue());
+        }
+        AllowAttachmentTagMatcher.resetCache();
+    }
+
+    private <T> T parse(String json, Class<T> dataClass) {
+        return CommonAssetsManager.GSON.fromJson(json, dataClass);
+    }
+
+    private AttachmentData parseAttachmentData(String json) {
+        AttachmentData data = CommonAssetsManager.GSON.fromJson(json, AttachmentData.class);
+        JsonElement element = CommonAssetsManager.GSON.fromJson(json, JsonElement.class);
+        if (data != null) {
+            // 蠎丞・蛹匁ｳｨ蜀檎噪驟堺ｻｶ螻樊ｧ菫ｮ謾ｹ
+            AttachmentPropertyManager.getModifiers().forEach((key, value) -> {
+                if (!element.isJsonObject()) {
+                    return;
+                }
+                JsonObject jsonObject = element.getAsJsonObject();
+                if (jsonObject.has(key)) {
+                    JsonProperty<?> property = value.readJson(json);
+                    property.initComponents();
+                    data.addModifier(key, property);
+                } else if (jsonObject.has(value.getOptionalFields())) {
+                    // 荳ｺ莠・・螳ｹ譌ｧ迚域悽・瑚ｯｻ蜿門庄騾牙ｭ玲ｮｵ蜷・
+                    JsonProperty<?> property = value.readJson(json);
+                    property.initComponents();
+                    data.addModifier(key, property);
+                }
+            });
+        }
+        return data;
+    }
+
+    private void resolveAttachmentTags(Map<Identifier, String> data) {
+        for (Map.Entry<Identifier, String> entry : data.entrySet()) {
+            List<String> tags = CommonAssetsManager.GSON.fromJson(entry.getValue(), new TypeToken<>(){});
+            if (entry.getKey().getPath().startsWith("allow_attachments/") && entry.getKey().getPath().length()>18) {
+                Identifier gunId = entry.getKey().withPath(entry.getKey().getPath().substring(18));
+                allowAttachmentTags.computeIfAbsent(gunId, (v) -> new HashSet<>()).addAll(tags);
+            } else {
+                attachmentTags.computeIfAbsent(entry.getKey(), (v) -> new HashSet<>()).addAll(tags);
+            }
+        }
+    }
+
+
+    private void fromNetwork(DataType type, Map<Identifier, String> data) {
+        for (Map.Entry<Identifier, String> entry : data.entrySet()) {
+            try {
+                switch (type) {
+                    case GUN_DATA -> gunData.put(entry.getKey(), parse(entry.getValue(), GunData.class));
+                    case GUN_INDEX -> gunIndex.put(entry.getKey(), parse(entry.getValue(), CommonGunIndex.class));
+                    case AMMO_INDEX -> ammoIndex.put(entry.getKey(), parse(entry.getValue(), CommonAmmoIndex.class));
+                    case ATTACHMENT_DATA -> attachmentData.put(entry.getKey(), parseAttachmentData(entry.getValue()));
+                    case ATTACHMENT_INDEX -> attachmentIndex.put(entry.getKey(), parse(entry.getValue(), CommonAttachmentIndex.class));
+                    case ATTACHMENT_TAGS -> resolveAttachmentTags(data);
+                    case BLOCK_INDEX -> blockIndex.put(entry.getKey(), parse(entry.getValue(), CommonBlockIndex.class));
+                    case RECIPE_FILTER -> recipeFilter.put(entry.getKey(), parse(entry.getValue(), RecipeFilter.class));
+                    case BLOCK_DATA -> blockData.put(entry.getKey(), parse(entry.getValue(), BlockData.class));
+                }
+            } catch (IllegalArgumentException | JsonParseException exception) {
+                GunMod.LOGGER.warn("Failed to parse data from network for {} with id {}", type, entry.getKey(), exception);
+            }
+        }
+    }
+}
+

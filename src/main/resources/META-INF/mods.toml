@@ -1,0 +1,41 @@
+modLoader = "javafml"
+loaderVersion = "[46,)"
+license = "GPL-3.0-only / CC BY-NC-ND 4.0 assets"
+
+[[mods]]
+modId = "tacz"
+version = "${file.jarVersion}"
+displayName = "TaCZ: WAVE Base"
+logoFile = "logo.png"
+updateJSONURL = ""
+displayURL = ""
+authors = "Serene Wave Studio | Based on Timeless Squad / MCModderAnchor TaCZ"
+description = '''
+A Forge 64 / Java 25 port and WAVE-focused adaptation of Timeless and Classics Guns: Zero.
+
+This project keeps the original TaCZ mod id and resource namespace for compatibility.
+'''
+
+[[dependencies.tacz]]
+modId = "forge"
+mandatory = true
+versionRange = "[46,)"
+ordering = "NONE"
+side = "BOTH"
+
+[[dependencies.tacz]]
+modId = "minecraft"
+mandatory = true
+versionRange = "[26.1.2,)"
+ordering = "NONE"
+side = "BOTH"
+
+[[dependencies.tacz]]
+modId = "shouldersurfing"
+mandatory = false
+versionRange = "[1.20.1-4.0.0,)"
+ordering = "NONE"
+side = "CLIENT"
+
+[modproperties.tacz]
+catalogueItemIcon = "tacz:gun_smith_table"
