@@ -1,5 +1,5 @@
 modLoader = "javafml"
-loaderVersion = "[46,)"
+loaderVersion = "[64,)"
 license = "GPL-3.0-only / CC BY-NC-ND 4.0 assets"
 
 [[mods]]
@@ -19,14 +19,14 @@ This project keeps the original TaCZ mod id and resource namespace for compatibi
 [[dependencies.tacz]]
 modId = "forge"
 mandatory = true
-versionRange = "[46,)"
+versionRange = "[64,)"
 ordering = "NONE"
 side = "BOTH"
 
 [[dependencies.tacz]]
 modId = "minecraft"
 mandatory = true
-versionRange = "[26.1.2,)"
+versionRange = "[26.1.2,26.2,)"
 ordering = "NONE"
 side = "BOTH"
 
