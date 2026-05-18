@@ -8,8 +8,12 @@ TaCZ: WAVE itself is not finished yet, but I decided to release a version with a
 
 ## Version
 
-`1.00 - 1.17+`
+`1.0.0`
 
 The mod ID and resource namespace are still kept as `tacz` for compatibility.
+
+## Support
+
+Please do not report issues from TaCZ: WAVE Base to the original TaCZ project. This is an unofficial Forge 64.0.8 port/adaptation, so bugs caused by this build should be handled on the TaCZ: WAVE side.
 
 Code derived from TaCZ remains under GNU GPL 3.0. Original TaCZ assets are licensed separately under CC BY-NC-ND 4.0 where applicable.

@@ -4,9 +4,8 @@ license = "GPL-3.0-only / CC BY-NC-ND 4.0 assets"
 
 [[mods]]
 modId = "tacz"
-version = "${file.jarVersion}"
+version = "1.0.0"
 displayName = "TaCZ: WAVE Base"
-logoFile = "logo.png"
 updateJSONURL = ""
 displayURL = ""
 authors = "Serene Wave Studio | Based on Timeless Squad / MCModderAnchor TaCZ"

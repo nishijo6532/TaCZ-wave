@@ -21,6 +21,7 @@ import java.time.Instant;
 import java.util.Date;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Stream;
 import java.util.zip.ZipEntry;
@@ -109,23 +110,39 @@ public final class GetJarResources {
             // 删掉原文件夹，达到强行覆盖的效果
             deleteFiles(targetPath);
         }
-        // 使用 Files.walk() 遍历文件夹中的所有内容
-        try (Stream<Path> stream = Files.walk(Paths.get(sourceURI), Integer.MAX_VALUE)) {
-            stream.forEach(source -> {
-                // 生成目标路径
-                Path target = targetPath.resolve(sourceURI.relativize(source.toUri()).toString());
+        FileSystem createdFileSystem = null;
+        try {
+            if ("jar".equalsIgnoreCase(sourceURI.getScheme())) {
                 try {
-                    // 复制文件或文件夹
-                    if (Files.isDirectory(source)) {
-                        Files.createDirectories(target);
-                    } else {
-                        Files.copy(source, target, StandardCopyOption.REPLACE_EXISTING);
-                    }
-                } catch (IOException e) {
-                    // 处理异常，例如权限问题等
-                    e.printStackTrace();
+                    createdFileSystem = FileSystems.newFileSystem(sourceURI, Map.of());
+                } catch (FileSystemAlreadyExistsException ignored) {
+                    // Forge may have already opened this mod jar as a file system.
                 }
-            });
+            }
+
+            Path sourceRoot = Paths.get(sourceURI);
+            // 使用 Files.walk() 遍历文件夹中的所有内容
+            try (Stream<Path> stream = Files.walk(sourceRoot, Integer.MAX_VALUE)) {
+                stream.forEach(source -> {
+                    // 生成目标路径
+                    Path target = targetPath.resolve(sourceRoot.relativize(source).toString());
+                    try {
+                        // 复制文件或文件夹
+                        if (Files.isDirectory(source)) {
+                            Files.createDirectories(target);
+                        } else {
+                            Files.copy(source, target, StandardCopyOption.REPLACE_EXISTING);
+                        }
+                    } catch (IOException e) {
+                        // 处理异常，例如权限问题等
+                        e.printStackTrace();
+                    }
+                });
+            }
+        } finally {
+            if (createdFileSystem != null) {
+                createdFileSystem.close();
+            }
         }
     }
 
