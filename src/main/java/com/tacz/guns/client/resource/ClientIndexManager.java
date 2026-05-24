@@ -4,6 +4,8 @@ import com.google.common.collect.Maps;
 import com.tacz.guns.GunMod;
 import com.tacz.guns.api.TimelessAPI;
 import com.tacz.guns.api.client.gameplay.IClientPlayerGunOperator;
+import com.tacz.guns.api.item.IAmmo;
+import com.tacz.guns.api.item.IAttachment;
 import com.tacz.guns.api.item.IGun;
 import com.tacz.guns.client.resource.index.ClientAmmoIndex;
 import com.tacz.guns.client.resource.index.ClientAttachmentIndex;
@@ -23,24 +25,31 @@ import java.util.Map;
 import java.util.Set;
 
 public class ClientIndexManager {
+    private static final int HOTBAR_SLOT_COUNT = 9;
+
     public static final Map<Identifier, GunDisplayInstance> GUN_DISPLAY = Maps.newHashMap();
     public static final Map<Identifier, ClientGunIndex> GUN_INDEX = Maps.newHashMap();
     public static final Map<Identifier, ClientAmmoIndex> AMMO_INDEX = Maps.newHashMap();
     public static final Map<Identifier, ClientAttachmentIndex> ATTACHMENT_INDEX = Maps.newHashMap();
     public static final Map<Identifier, ClientBlockIndex> BLOCK_INDEX = Maps.newHashMap();
 
-    public static void reload() {
+    public static void clear() {
         GUN_DISPLAY.clear();
         GUN_INDEX.clear();
         AMMO_INDEX.clear();
         ATTACHMENT_INDEX.clear();
         BLOCK_INDEX.clear();
+    }
+
+    public static void reload() {
+        clear();
 
         loadGunDisplay();
         loadGunIndex();
         loadAmmoIndex();
         loadAttachmentIndex();
         loadBlockIndex();
+        warmUpInventoryModels();
 
         LocalPlayer player = Minecraft.getInstance().player;
         if (player != null && IGun.mainHandHoldGun(player)) {
@@ -54,11 +63,20 @@ public class ClientIndexManager {
     public static void loadGunDisplay() {
         ClientAssetsManager.INSTANCE.getGunDisplays().forEach(entry -> {
             try {
-                GUN_DISPLAY.put(entry.getKey(), GunDisplayInstance.create(entry.getValue()));
+                GUN_DISPLAY.put(entry.getKey(), GunDisplayInstance.create(entry.getKey(), entry.getValue()));
             } catch (IllegalArgumentException exception) {
                 GunMod.LOGGER.warn("{} display init read fail!", entry.getKey(), exception);
             }
         });
+    }
+
+    public static GunDisplayInstance getOrCreateGunDisplay(Identifier displayId) {
+        GunDisplayInstance instance = GUN_DISPLAY.get(displayId);
+        if (instance != null) {
+            return instance;
+        }
+        GunMod.LOGGER.warn("{} display instance is missing from cache", displayId);
+        return null;
     }
 
     public static void loadGunIndex() {
@@ -123,6 +141,94 @@ public class ClientIndexManager {
 
     public static Set<Map.Entry<Identifier, ClientBlockIndex>> getAllBlocks() {
         return BLOCK_INDEX.entrySet();
+    }
+
+    public static void warmUpInventoryModels() {
+        LocalPlayer player = Minecraft.getInstance().player;
+        if (player == null) {
+            return;
+        }
+        warmUpItemForUse(player.getMainHandItem());
+        warmUpItemForUse(player.getOffhandItem());
+        warmUpHotbarModels(player);
+        warmUpBackpackModels(player);
+    }
+
+    public static void warmUpEquippedAndHotbarModels() {
+        LocalPlayer player = Minecraft.getInstance().player;
+        if (player == null) {
+            return;
+        }
+        warmUpItemForUse(player.getMainHandItem());
+        warmUpItemForUse(player.getOffhandItem());
+        warmUpHotbarModels(player);
+    }
+
+    public static void warmUpBackpackModels() {
+        LocalPlayer player = Minecraft.getInstance().player;
+        if (player == null) {
+            return;
+        }
+        warmUpBackpackModels(player);
+    }
+
+    private static void warmUpHotbarModels(LocalPlayer player) {
+        var inventory = player.getInventory();
+        int inventorySize = inventory.getContainerSize();
+        int hotbarSize = Math.min(HOTBAR_SLOT_COUNT, inventorySize);
+        for (int i = 0; i < hotbarSize; i++) {
+            warmUpItemModel(inventory.getItem(i));
+        }
+    }
+
+    private static void warmUpBackpackModels(LocalPlayer player) {
+        var inventory = player.getInventory();
+        int inventorySize = inventory.getContainerSize();
+        for (int i = Math.min(HOTBAR_SLOT_COUNT, inventorySize); i < inventorySize; i++) {
+            warmUpItemModel(inventory.getItem(i));
+        }
+    }
+
+    public static void warmUpItem(ItemStack stack) {
+        warmUpItemForUse(stack);
+    }
+
+    public static void warmUpItemModel(ItemStack stack) {
+        if (stack.isEmpty()) {
+            return;
+        }
+        if (stack.getItem() instanceof IGun) {
+            TimelessAPI.getGunDisplay(stack).ifPresent(display -> {
+                display.warmUpLod();
+                display.warmUpModel();
+                display.warmUpRuntime();
+            });
+            return;
+        }
+        IAttachment attachment = IAttachment.getIAttachmentOrNull(stack);
+        if (attachment != null) {
+            TimelessAPI.getClientAttachmentIndex(attachment.getAttachmentId(stack)).ifPresent(ClientAttachmentIndex::warmUp);
+            return;
+        }
+        IAmmo ammo = IAmmo.getIAmmoOrNull(stack);
+        if (ammo != null) {
+            TimelessAPI.getClientAmmoIndex(ammo.getAmmoId(stack)).ifPresent(ClientAmmoIndex::warmUp);
+        }
+    }
+
+    public static void warmUpItemForUse(ItemStack stack) {
+        if (stack.isEmpty()) {
+            return;
+        }
+        if (stack.getItem() instanceof IGun) {
+            TimelessAPI.getGunDisplay(stack).ifPresent(display -> {
+                display.warmUpLod();
+                display.warmUpModel();
+                display.warmUpRuntime();
+            });
+            return;
+        }
+        warmUpItemModel(stack);
     }
 }
 

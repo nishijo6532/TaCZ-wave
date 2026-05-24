@@ -2,6 +2,7 @@ package com.tacz.guns.config;
 
 import com.tacz.guns.config.client.KeyConfig;
 import com.tacz.guns.config.client.RenderConfig;
+import com.tacz.guns.config.client.ResourceConfig;
 import com.tacz.guns.config.client.ZoomConfig;
 import net.minecraftforge.common.ForgeConfigSpec;
 
@@ -11,6 +12,7 @@ public class ClientConfig {
         KeyConfig.init(builder);
         RenderConfig.init(builder);
         ZoomConfig.init(builder);
+        ResourceConfig.init(builder);
         return builder.build();
     }
 }

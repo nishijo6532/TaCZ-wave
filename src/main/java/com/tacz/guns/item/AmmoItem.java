@@ -26,7 +26,9 @@ import org.jetbrains.annotations.Nullable;
 
 import javax.annotation.Nonnull;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.function.Consumer;
 
@@ -60,11 +62,15 @@ public class AmmoItem extends Item implements AmmoItemDataAccessor {
 
     public static NonNullList<ItemStack> fillItemCategory() {
         NonNullList<ItemStack> stacks = NonNullList.create();
-        TimelessAPI.getAllCommonAmmoIndex().forEach(entry -> {
+        TimelessAPI.getAllCommonAmmoIndex().stream().sorted(idNameSort()).forEach(entry -> {
             ItemStack itemStack = AmmoItemBuilder.create().setId(entry.getKey()).build();
             stacks.add(itemStack);
         });
         return stacks;
+    }
+
+    private static Comparator<Map.Entry<Identifier, CommonAmmoIndex>> idNameSort() {
+        return Comparator.comparingInt(entry -> entry.getValue().getSort());
     }
 
     @Override

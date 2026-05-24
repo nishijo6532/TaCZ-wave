@@ -27,8 +27,15 @@ import org.joml.Quaternionf;
 
 public class BulletHoleParticle extends SingleQuadParticle {
     private static final double SURFACE_OFFSET = 0.002D;
+    private static final Quaternionf ROTATION_DOWN = new Quaternionf().rotationX((float) (Math.PI / 2));
+    private static final Quaternionf ROTATION_UP = new Quaternionf().rotationX((float) (-Math.PI / 2));
+    private static final Quaternionf ROTATION_NORTH = new Quaternionf().rotationY((float) Math.PI);
+    private static final Quaternionf ROTATION_SOUTH = new Quaternionf();
+    private static final Quaternionf ROTATION_WEST = new Quaternionf().rotationY((float) (-Math.PI / 2));
+    private static final Quaternionf ROTATION_EAST = new Quaternionf().rotationY((float) (Math.PI / 2));
     private final Direction direction;
     private final BlockPos pos;
+    private final Quaternionf surfaceRotation;
     private int uOffset;
     private int vOffset;
     private float textureDensity;
@@ -44,6 +51,7 @@ public class BulletHoleParticle extends SingleQuadParticle {
                 resolveSprite(world, pos));
         this.direction = direction;
         this.pos = pos;
+        this.surfaceRotation = getSurfaceRotation(direction);
         this.lifetime = this.getLifetimeFromConfig(world);
         this.hasPhysics = false;
         this.gravity = 0.0F;
@@ -140,18 +148,17 @@ public class BulletHoleParticle extends SingleQuadParticle {
         float particleX = (float) (Mth.lerp(partialTicks, this.xo, this.x) - view.x());
         float particleY = (float) (Mth.lerp(partialTicks, this.yo, this.y) - view.y());
         float particleZ = (float) (Mth.lerp(partialTicks, this.zo, this.z) - view.z());
-        Quaternionf quaternion = getSurfaceRotation(this.direction);
-        this.extractRotatedQuad(state, quaternion, particleX, particleY, particleZ, partialTicks);
+        this.extractRotatedQuad(state, this.surfaceRotation, particleX, particleY, particleZ, partialTicks);
     }
 
     private static Quaternionf getSurfaceRotation(Direction direction) {
         return switch (direction) {
-            case DOWN -> new Quaternionf().rotationX((float) (Math.PI / 2));
-            case UP -> new Quaternionf().rotationX((float) (-Math.PI / 2));
-            case NORTH -> new Quaternionf().rotationY((float) Math.PI);
-            case SOUTH -> new Quaternionf();
-            case WEST -> new Quaternionf().rotationY((float) (-Math.PI / 2));
-            case EAST -> new Quaternionf().rotationY((float) (Math.PI / 2));
+            case DOWN -> ROTATION_DOWN;
+            case UP -> ROTATION_UP;
+            case NORTH -> ROTATION_NORTH;
+            case SOUTH -> ROTATION_SOUTH;
+            case WEST -> ROTATION_WEST;
+            case EAST -> ROTATION_EAST;
         };
     }
 

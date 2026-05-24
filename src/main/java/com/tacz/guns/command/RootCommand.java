@@ -3,6 +3,8 @@ package com.tacz.guns.command;
 import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.builder.LiteralArgumentBuilder;
 import com.tacz.guns.command.sub.GiveCommand;
+import com.tacz.guns.command.sub.ListCommand;
+import com.tacz.guns.command.sub.ReloadCommand;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
 
@@ -16,6 +18,8 @@ public final class RootCommand {
         LiteralArgumentBuilder<CommandSourceStack> root = Commands.literal(ROOT_NAME)
                 .requires(Commands.hasPermission(Commands.LEVEL_GAMEMASTERS));
         root.then(GiveCommand.get());
+        root.then(ListCommand.get());
+        root.then(ReloadCommand.get());
         dispatcher.register(root);
     }
 }

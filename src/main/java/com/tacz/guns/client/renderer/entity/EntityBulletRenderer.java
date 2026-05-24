@@ -8,6 +8,7 @@ import com.tacz.guns.client.model.bedrock.BedrockModel;
 import com.tacz.guns.client.renderer.item.GunItemRendererWrapper;
 import com.tacz.guns.client.resource.GunDisplayInstance;
 import com.tacz.guns.client.resource.InternalAssetLoader;
+import com.tacz.guns.client.resource.index.ClientAmmoIndex;
 import com.tacz.guns.config.client.RenderConfig;
 import com.tacz.guns.entity.EntityKineticBullet;
 import net.minecraft.client.Camera;
@@ -33,12 +34,12 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.joml.Vector3f;
 
-import java.util.Objects;
 import java.util.Optional;
 
 public class EntityBulletRenderer extends EntityRenderer<EntityKineticBullet, EntityBulletRenderer.RenderState> {
     private static final float FIRST_PERSON_MUZZLE_DEPTH_SCALE = 0.0F;
     private static final double FIRST_PERSON_MIN_TRAIL_LENGTH = 0.12D;
+    private static final RenderType BULLET_TRACER_RENDER_TYPE = RenderTypeCompat.energySwirl(InternalAssetLoader.DEFAULT_BULLET_TEXTURE, 15, 15);
 
     public EntityBulletRenderer(EntityRendererProvider.Context pContext) {
         super(pContext);
@@ -72,80 +73,86 @@ public class EntityBulletRenderer extends EntityRenderer<EntityKineticBullet, En
     private void renderBullet(EntityKineticBullet bullet, float partialTicks, PoseStack poseStack, int packedLight) {
         Identifier gunId = bullet.getGunId();
         Identifier gunDisplayId = bullet.getGunDisplayId();
-        Optional<GunDisplayInstance> display = TimelessAPI.getGunDisplay(gunDisplayId, gunId);
-        if (display.isEmpty()) {
+        Optional<GunDisplayInstance> displayOptional = TimelessAPI.getGunDisplay(gunDisplayId, gunId);
+        if (displayOptional.isEmpty()) {
             return;
         }
-        float @Nullable [] tracerColor = bullet.getTracerColorOverride().orElse(display.get().getTracerColor());
+        GunDisplayInstance display = displayOptional.get();
+        float @Nullable [] tracerColor = bullet.getTracerColorOverride().orElse(display.getTracerColor());
         Entity shooter = bullet.getOwner();
         boolean isFirstPerson = this.entityRenderDispatcher.options.getCameraType().isFirstPerson() && shooter instanceof LocalPlayer;
         Vec3 bulletPosition = bullet.getPosition(partialTicks);
-        Vec3 firstPersonRenderOrigin = Minecraft.getInstance().gameRenderer.getMainCamera().position();
+        Vec3 firstPersonRenderOrigin = isFirstPerson ? Minecraft.getInstance().gameRenderer.getMainCamera().position() : null;
         boolean useFirstPersonPrediction = isFirstPerson && !bullet.isExplosionBullet()
                 && bullet.hasClientFirstPersonRenderPrediction();
         Vec3 renderPosition = useFirstPersonPrediction
                 ? bullet.getClientFirstPersonRenderPosition(firstPersonRenderOrigin, partialTicks)
                 : bulletPosition;
-        Vec3 renderOffset = renderPosition.subtract(bulletPosition);
+        Vec3 renderOffset = useFirstPersonPrediction ? renderPosition.subtract(bulletPosition) : Vec3.ZERO;
         double disToEye = isFirstPerson ? renderPosition.distanceTo(firstPersonRenderOrigin) : shooter == null ? 0 : renderPosition.distanceTo(shooter.getEyePosition(partialTicks));
         Identifier ammoId = bullet.getAmmoId();
-        TimelessAPI.getClientAmmoIndex(ammoId).ifPresent(ammoIndex -> {
-            BedrockAmmoModel ammoEntityModel = ammoIndex.getAmmoEntityModel();
-            Identifier textureLocation = ammoIndex.getAmmoEntityTextureLocation();
-            if (ammoEntityModel != null && textureLocation != null) {
-                poseStack.pushPose();
-                poseStack.translate(renderOffset.x, renderOffset.y, renderOffset.z);
-                poseStack.mulPose(Axis.YP.rotationDegrees(Mth.lerp(partialTicks, bullet.yRotO, bullet.getYRot()) - 180.0F));
-                poseStack.mulPose(Axis.XP.rotationDegrees(Mth.lerp(partialTicks, bullet.xRotO, bullet.getXRot())));
-                poseStack.translate(0, 1.5, 0);
-                poseStack.scale(-1, -1, 1);
-                ammoEntityModel.render(poseStack, ItemDisplayContext.GROUND, RenderTypeCompat.entityTranslucentCull(textureLocation), packedLight, OverlayTexture.NO_OVERLAY);
-                poseStack.popPose();
-            }
+        Optional<ClientAmmoIndex> ammoIndexOptional = TimelessAPI.getClientAmmoIndex(ammoId);
+        if (ammoIndexOptional.isEmpty()) {
+            return;
+        }
+        ClientAmmoIndex ammoIndex = ammoIndexOptional.get();
+        BedrockAmmoModel ammoEntityModel = ammoIndex.getAmmoEntityModel();
+        Identifier textureLocation = ammoIndex.getAmmoEntityTextureLocation();
+        if (ammoEntityModel != null && textureLocation != null) {
+            poseStack.pushPose();
+            poseStack.translate(renderOffset.x, renderOffset.y, renderOffset.z);
+            poseStack.mulPose(Axis.YP.rotationDegrees(Mth.lerp(partialTicks, bullet.yRotO, bullet.getYRot()) - 180.0F));
+            poseStack.mulPose(Axis.XP.rotationDegrees(Mth.lerp(partialTicks, bullet.xRotO, bullet.getXRot())));
+            poseStack.translate(0, 1.5, 0);
+            poseStack.scale(-1, -1, 1);
+            ammoEntityModel.render(poseStack, ItemDisplayContext.GROUND, RenderTypeCompat.entityTranslucentCull(textureLocation), packedLight, OverlayTexture.NO_OVERLAY);
+            poseStack.popPose();
+        }
 
-            if (bullet.isTracerAmmo()) {
-                float[] actualTracerColor = Objects.requireNonNullElse(tracerColor, ammoIndex.getTracerColor());
-                renderTracerAmmo(bullet, actualTracerColor, partialTicks, poseStack, packedLight, shooter, isFirstPerson, disToEye, renderOffset);
-            }
-        });
+        if (bullet.isTracerAmmo()) {
+            float[] actualTracerColor = tracerColor != null ? tracerColor : ammoIndex.getTracerColor();
+            renderTracerAmmo(bullet, actualTracerColor, partialTicks, poseStack, packedLight, shooter, isFirstPerson, disToEye, renderOffset);
+        }
     }
 
     public void renderTracerAmmo(EntityKineticBullet bullet, float[] tracerColor, float partialTicks, PoseStack poseStack, int packedLight,
                                  @Nullable Entity shooter, boolean isFirstPerson, double disToEye, Vec3 renderOffset) {
-        getModel().ifPresent(model -> {
-            if (shooter == null) {
-                return;
+        if (shooter == null) {
+            return;
+        }
+        if (isFirstPerson && !RenderConfig.FIRST_PERSON_BULLET_TRACER_ENABLE.get()) {
+            return;
+        }
+        Optional<BedrockModel> modelOptional = getModel();
+        if (modelOptional.isEmpty()) {
+            return;
+        }
+        BedrockModel model = modelOptional.get();
+        poseStack.pushPose();
+        {
+            poseStack.translate(renderOffset.x, renderOffset.y, renderOffset.z);
+            float width = 0.005f;
+            double trailLength = 0.85 * bullet.getDeltaMovement().length();
+            trailLength = Math.min(trailLength, disToEye * 0.8);
+            if (isFirstPerson) {
+                trailLength = Math.max(trailLength, FIRST_PERSON_MIN_TRAIL_LENGTH);
             }
-            if (isFirstPerson && !RenderConfig.FIRST_PERSON_BULLET_TRACER_ENABLE.get()) {
-                return;
-            }
-            poseStack.pushPose();
-            {
-                poseStack.translate(renderOffset.x, renderOffset.y, renderOffset.z);
-                float width = 0.005f;
-                double trailLength = 0.85 * bullet.getDeltaMovement().length();
-                trailLength = Math.min(trailLength, disToEye * 0.8);
-                if (isFirstPerson) {
-                    trailLength = Math.max(trailLength, FIRST_PERSON_MIN_TRAIL_LENGTH);
-                }
 
-                if (isFirstPerson) {
-                    applyFirstPersonOffsetTransform(bullet, poseStack, disToEye);
-                }
-                width *= bullet.getTracerSizeOverride();
-                width *= (float) Math.max(1.0, disToEye / 3.5);
-                poseStack.mulPose(Axis.YP.rotationDegrees(Mth.lerp(partialTicks, bullet.yRotO, bullet.getYRot()) - 180.0F));
-                poseStack.mulPose(Axis.XP.rotationDegrees(Mth.lerp(partialTicks, bullet.xRotO, bullet.getXRot())));
-                poseStack.translate(0, isFirstPerson ? 0 : -0.2, trailLength / 2.0);
-                poseStack.scale(width, width, (float) trailLength);
-                if (bullet.tickCount >= 5 || disToEye > 2) {
-                    RenderType type = RenderTypeCompat.energySwirl(InternalAssetLoader.DEFAULT_BULLET_TEXTURE, 15, 15);
-                    model.render(poseStack, ItemDisplayContext.NONE, type, packedLight, OverlayTexture.NO_OVERLAY,
-                            tracerColor[0], tracerColor[1], tracerColor[2], 1);
-                }
+            if (isFirstPerson) {
+                applyFirstPersonOffsetTransform(bullet, poseStack, disToEye);
             }
-            poseStack.popPose();
-        });
+            width *= bullet.getTracerSizeOverride();
+            width *= (float) Math.max(1.0, disToEye / 3.5);
+            poseStack.mulPose(Axis.YP.rotationDegrees(Mth.lerp(partialTicks, bullet.yRotO, bullet.getYRot()) - 180.0F));
+            poseStack.mulPose(Axis.XP.rotationDegrees(Mth.lerp(partialTicks, bullet.xRotO, bullet.getXRot())));
+            poseStack.translate(0, isFirstPerson ? 0 : -0.2, trailLength / 2.0);
+            poseStack.scale(width, width, (float) trailLength);
+            if (bullet.tickCount >= 5 || disToEye > 2) {
+                model.render(poseStack, ItemDisplayContext.NONE, BULLET_TRACER_RENDER_TYPE, packedLight, OverlayTexture.NO_OVERLAY,
+                        tracerColor[0], tracerColor[1], tracerColor[2], 1);
+            }
+        }
+        poseStack.popPose();
     }
 
     private static void applyFirstPersonOffsetTransform(EntityKineticBullet bullet, PoseStack poseStack, double disToEye) {
@@ -153,7 +160,7 @@ public class EntityBulletRenderer extends EntityRenderer<EntityKineticBullet, En
         Vector3f capturedOffset = bullet.getFirstPersonRenderOffset();
         Vector3f offset;
         if (isUsableFirstPersonOffset(capturedOffset)) {
-            offset = new Vector3f(capturedOffset);
+            offset = capturedOffset;
         } else {
             offset = new Vector3f(GunItemRendererWrapper.muzzleRenderOffset);
             bullet.setFirstPersonRenderOffset(offset);

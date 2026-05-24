@@ -16,8 +16,13 @@ import net.minecraftforge.eventbus.api.listener.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.registries.ForgeRegistries;
 
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+
 @Mod.EventBusSubscriber
 public class DestroyGlassBlock {
+    private static final Map<Block, Boolean> GLASS_LIKE_CACHE = new ConcurrentHashMap<>();
+
     @SubscribeEvent
     public static void onAmmoHitBlock(AmmoHitBlockEvent event) {
         Level level = event.getLevel();
@@ -31,6 +36,16 @@ public class DestroyGlassBlock {
     }
 
     private static boolean isGlassLike(Block block, BlockState state) {
+        Boolean cached = GLASS_LIKE_CACHE.get(block);
+        if (cached != null) {
+            return cached;
+        }
+        boolean result = computeGlassLike(block, state);
+        GLASS_LIKE_CACHE.put(block, result);
+        return result;
+    }
+
+    private static boolean computeGlassLike(Block block, BlockState state) {
         NoteBlockInstrument instrument = state.instrument();
         if (block instanceof TransparentBlock ||
                 block instanceof StainedGlassPaneBlock ||

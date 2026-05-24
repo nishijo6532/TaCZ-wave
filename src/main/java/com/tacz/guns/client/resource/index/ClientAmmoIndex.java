@@ -3,11 +3,14 @@ package com.tacz.guns.client.resource.index;
 import com.google.common.base.Preconditions;
 import com.mojang.brigadier.StringReader;
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
+import com.tacz.guns.GunMod;
 import com.tacz.guns.client.model.BedrockAmmoModel;
+import com.tacz.guns.client.resource.ClientAssetLoadDispatcher;
 import com.tacz.guns.client.resource.ClientAssetsManager;
 import com.tacz.guns.client.resource.pojo.display.ammo.*;
 import com.tacz.guns.client.resource.pojo.model.BedrockModelPOJO;
 import com.tacz.guns.client.resource.pojo.model.BedrockVersion;
+import com.tacz.guns.config.client.ResourceConfig;
 import com.tacz.guns.resource.pojo.AmmoIndexPOJO;
 import com.tacz.guns.util.ColorHex;
 import net.minecraft.client.renderer.texture.MissingTextureAtlasSprite;
@@ -20,10 +23,14 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.Objects;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.stream.Stream;
 
 public class ClientAmmoIndex {
+    private final Object modelLoadLock = new Object();
     private String name;
+    private AmmoDisplay display;
     private @Nullable BedrockAmmoModel ammoModel;
     private @Nullable Identifier modelTextureLocation;
     private Identifier slotTextureLocation;
@@ -36,6 +43,9 @@ public class ClientAmmoIndex {
     private float[] tracerColor = new float[]{1f, 1f, 1f};
     private AmmoTransform transform;
     private @Nullable String tooltipKey;
+    private volatile boolean modelsLoaded = false;
+    private volatile boolean modelsLoadFailed = false;
+    private volatile CompletableFuture<Void> warmUpTask = null;
 
     private ClientAmmoIndex() {
     }
@@ -43,16 +53,16 @@ public class ClientAmmoIndex {
     public static ClientAmmoIndex getInstance(AmmoIndexPOJO clientPojo) throws IllegalArgumentException {
         ClientAmmoIndex index = new ClientAmmoIndex();
         checkIndex(clientPojo, index);
-        AmmoDisplay display = checkDisplay(clientPojo);
+        AmmoDisplay display = checkDisplay(clientPojo, index);
         checkName(clientPojo, index);
-        checkTextureAndModel(display, index);
         checkSlotTexture(display, index);
         checkStackSize(clientPojo, index);
-        checkAmmoEntity(display, index);
-        checkShell(display, index);
         checkParticle(display, index);
         checkTracerColor(display, index);
         checkTransform(display, index);
+        if (!ResourceConfig.ENABLE_LAZY_CLIENT_ASSET_LOAD.get()) {
+            index.ensureModelsLoaded();
+        }
         return index;
     }
 
@@ -69,13 +79,84 @@ public class ClientAmmoIndex {
     }
 
     @NotNull
-    private static AmmoDisplay checkDisplay(AmmoIndexPOJO ammoIndexPOJO) {
+    private static AmmoDisplay checkDisplay(AmmoIndexPOJO ammoIndexPOJO, ClientAmmoIndex index) {
         Identifier pojoDisplay = ammoIndexPOJO.getDisplay();
         Preconditions.checkArgument(pojoDisplay != null, "index object missing display field");
 
         AmmoDisplay display = ClientAssetsManager.INSTANCE.getAmmoDisplay(pojoDisplay);
         Preconditions.checkArgument(display != null, "there is no corresponding display file");
+        index.display = display;
         return display;
+    }
+
+    public void warmUp() {
+        if (!ResourceConfig.ENABLE_LAZY_CLIENT_ASSET_LOAD.get()) {
+            ensureModelsLoaded();
+            return;
+        }
+        if (modelsLoaded || modelsLoadFailed || warmUpTask != null) {
+            return;
+        }
+        synchronized (modelLoadLock) {
+            if (modelsLoaded || modelsLoadFailed || warmUpTask != null) {
+                return;
+            }
+            warmUpTask = CompletableFuture.runAsync(this::loadModelsIfNecessary, ClientAssetLoadDispatcher.executor());
+            warmUpTask.whenComplete((unused, throwable) -> {
+                if (throwable != null) {
+                    handleModelsLoadFailure(throwable);
+                }
+            });
+        }
+    }
+
+    private void ensureModelsLoaded() {
+        if (modelsLoaded || modelsLoadFailed) {
+            return;
+        }
+        CompletableFuture<Void> task = warmUpTask;
+        if (task == null) {
+            try {
+                loadModelsIfNecessary();
+            } catch (Throwable throwable) {
+                handleModelsLoadFailure(throwable);
+            }
+            return;
+        }
+        try {
+            task.join();
+        } catch (CompletionException exception) {
+            handleModelsLoadFailure(exception.getCause() == null ? exception : exception.getCause());
+        }
+    }
+
+    private void loadModelsIfNecessary() {
+        if (modelsLoaded) {
+            return;
+        }
+        synchronized (modelLoadLock) {
+            if (modelsLoaded) {
+                return;
+            }
+            checkTextureAndModel(display, this);
+            checkAmmoEntity(display, this);
+            checkShell(display, this);
+            modelsLoaded = true;
+        }
+    }
+
+    private void handleModelsLoadFailure(Throwable throwable) {
+        boolean shouldLog = false;
+        synchronized (modelLoadLock) {
+            if (!modelsLoaded) {
+                shouldLog = !modelsLoadFailed;
+                warmUpTask = null;
+                modelsLoadFailed = true;
+            }
+        }
+        if (shouldLog) {
+            GunMod.LOGGER.warn("Failed to load ammo models {}", display.getModelLocation(), throwable);
+        }
     }
 
     private static void checkTextureAndModel(AmmoDisplay display, ClientAmmoIndex index) {
@@ -192,11 +273,13 @@ public class ClientAmmoIndex {
 
     @Nullable
     public BedrockAmmoModel getAmmoModel() {
+        ensureModelsLoaded();
         return ammoModel;
     }
 
     @Nullable
     public Identifier getModelTextureLocation() {
+        ensureModelsLoaded();
         return modelTextureLocation;
     }
 
@@ -210,21 +293,25 @@ public class ClientAmmoIndex {
 
     @Nullable
     public BedrockAmmoModel getAmmoEntityModel() {
+        ensureModelsLoaded();
         return ammoEntityModel;
     }
 
     @Nullable
     public Identifier getAmmoEntityTextureLocation() {
+        ensureModelsLoaded();
         return ammoEntityTextureLocation;
     }
 
     @Nullable
     public BedrockAmmoModel getShellModel() {
+        ensureModelsLoaded();
         return shellModel;
     }
 
     @Nullable
     public Identifier getShellTextureLocation() {
+        ensureModelsLoaded();
         return shellTextureLocation;
     }
 

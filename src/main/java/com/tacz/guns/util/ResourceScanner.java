@@ -53,6 +53,18 @@ public class ResourceScanner {
         return output;
     }
 
+    public static Map<Identifier, Identifier> scanDirectoryResources(ResourceManager pResourceManager, FileToIdConverter filetoidconverter) {
+        Map<Identifier, Identifier> output = Maps.newHashMap();
+        for (Identifier resourceLocation : filetoidconverter.listMatchingResources(pResourceManager).keySet()) {
+            Identifier id = filetoidconverter.fileToId(resourceLocation);
+            Identifier previous = output.put(id, resourceLocation);
+            if (previous != null) {
+                throw new IllegalStateException("Duplicate data file ignored with ID " + id);
+            }
+        }
+        return output;
+    }
+
     /**
      * 謇ｫ謠乗欠螳夂岼蠖穂ｸ狗噪謇譛泳son譁・ｻｶ<br/>
      * 荳施@link #scanDirectory(ResourceManager, String, Gson)}荳榊酔逧・弍・瑚ｯ･譁ｹ豕穂ｼ夊ｯｻ蜿匁園譛泳son譁・ｻｶ菴應ｸｺ蛻苓｡ｨ霑泌屓

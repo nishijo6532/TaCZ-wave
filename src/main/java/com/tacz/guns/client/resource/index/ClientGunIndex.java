@@ -25,10 +25,11 @@ public class ClientGunIndex {
     public static ClientGunIndex getInstance(GunIndexPOJO gunIndexPOJO) throws IllegalArgumentException {
         ClientGunIndex index = new ClientGunIndex();
         checkIndex(gunIndexPOJO, index);
-        GunDisplay display = checkDisplay(gunIndexPOJO);
+        Identifier displayId = checkDisplayId(gunIndexPOJO);
+        GunDisplay display = checkDisplay(displayId);
         checkData(gunIndexPOJO, index);
         checkName(gunIndexPOJO, index);
-        index.display = GunDisplayInstance.create(display);
+        index.display = GunDisplayInstance.create(displayId, display);
         return index;
     }
 
@@ -56,9 +57,14 @@ public class ClientGunIndex {
     }
 
     @NotNull
-    private static GunDisplay checkDisplay(GunIndexPOJO gunIndexPOJO) {
+    private static Identifier checkDisplayId(GunIndexPOJO gunIndexPOJO) {
         Identifier pojoDisplay = gunIndexPOJO.getDisplay();
         Preconditions.checkArgument(pojoDisplay != null, "index object missing display field");
+        return pojoDisplay;
+    }
+
+    @NotNull
+    private static GunDisplay checkDisplay(Identifier pojoDisplay) {
         GunDisplay display = ClientAssetsManager.INSTANCE.getGunDisplay(pojoDisplay);
         Preconditions.checkArgument(display != null, "there is no corresponding display file");
         return display;

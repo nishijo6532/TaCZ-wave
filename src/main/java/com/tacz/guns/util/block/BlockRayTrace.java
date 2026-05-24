@@ -16,7 +16,10 @@ import net.minecraft.world.phys.shapes.VoxelShape;
 import net.minecraftforge.registries.ForgeRegistries;
 
 import javax.annotation.Nullable;
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -24,15 +27,19 @@ import java.util.function.Predicate;
 public final class BlockRayTrace {
     private static final Predicate<BlockState> IGNORES = input -> input != null &&
             input.is(ModBlocks.BULLET_IGNORE_BLOCKS);
+    private static List<String> cachedPassThroughBlocks = Collections.emptyList();
+    private static Set<String> cachedPassThroughBlockIds = Collections.emptySet();
 
     public static BlockHitResult rayTraceBlocks(Level level, ClipContext context) {
         return performRayTrace(context, (rayTraceContext, blockPos) -> {
             BlockState blockState = level.getBlockState(blockPos);
             // 霑咎㈹豺ｻ蜉蛻､譁ｭ譁ｹ蝮玲弍蜷ｦ蜿ｯ莉･遨ｿ騾擾ｼ悟ｦよ棡蜿ｯ莉･遨ｿ騾丞・霑泌屓 null
-            List<String> ids = AmmoConfig.PASS_THROUGH_BLOCKS.get();
-            Identifier blockId = ForgeRegistries.BLOCKS.getKey(blockState.getBlock());
-            if (blockId != null && ids.contains(blockId.toString())) {
-                return null;
+            Set<String> ids = getPassThroughBlockIds();
+            if (!ids.isEmpty()) {
+                Identifier blockId = ForgeRegistries.BLOCKS.getKey(blockState.getBlock());
+                if (blockId != null && ids.contains(blockId.toString())) {
+                    return null;
+                }
             }
             // tag
             if (IGNORES.test(blockState)) {
@@ -43,6 +50,15 @@ public final class BlockRayTrace {
             Vec3 vec3 = rayTraceContext.getFrom().subtract(rayTraceContext.getTo());
             return BlockHitResult.miss(rayTraceContext.getTo(), Direction.getNearest(Mth.sign(vec3.x), Mth.sign(vec3.y), Mth.sign(vec3.z), null), BlockPos.containing(rayTraceContext.getTo()));
         });
+    }
+
+    private static Set<String> getPassThroughBlockIds() {
+        List<String> ids = AmmoConfig.PASS_THROUGH_BLOCKS.get();
+        if (ids != cachedPassThroughBlocks) {
+            cachedPassThroughBlocks = ids;
+            cachedPassThroughBlockIds = ids.isEmpty() ? Collections.emptySet() : new HashSet<>(ids);
+        }
+        return cachedPassThroughBlockIds;
     }
 
     @Nullable

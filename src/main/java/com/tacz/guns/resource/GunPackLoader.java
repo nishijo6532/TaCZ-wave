@@ -7,10 +7,9 @@ import com.tacz.guns.api.resource.ResourceManager;
 import com.tacz.guns.config.PreLoadConfig;
 import com.tacz.guns.util.GetJarResources;
 import com.tacz.guns.util.ModListCompat;
-import cpw.mods.jarhandling.SecureJar;
 import net.minecraft.SharedConstants;
 import net.minecraft.network.chat.Component;
-import net.minecraft.resources.Identifier;
+import net.minecraft.server.packs.FilePackResources;
 import net.minecraft.server.packs.PackResources;
 import net.minecraft.server.packs.PackLocationInfo;
 import net.minecraft.server.packs.PackSelectionConfig;
@@ -32,7 +31,6 @@ import org.apache.logging.log4j.MarkerManager;
 import org.apache.maven.artifact.versioning.ArtifactVersion;
 import org.apache.maven.artifact.versioning.InvalidVersionSpecificationException;
 import org.apache.maven.artifact.versioning.VersionRange;
-import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.io.File;
@@ -95,59 +93,13 @@ public enum GunPackLoader implements RepositorySource {
         GunMod.LOGGER.info(MARKER, "Start scanning for gun packs in {}", resourcePacksPath);
         List<GunPack> gunPacks = scanExtensions(resourcePacksPath);
         GunMod.LOGGER.info(MARKER, "Found {} possible gunpack(s) and added them to resource set.", gunPacks.size());
-        List<PathPackResources> extensionPacks = new ArrayList<>();
+        List<PackResources> extensionPacks = new ArrayList<>();
 
         for(GunPack gunPack : gunPacks) {
             PackLocationInfo extensionInfo = new PackLocationInfo("tacz_extension_" + gunPack.name, Component.literal(gunPack.name), PackSource.BUILT_IN, Optional.empty());
-            PathPackResources packResources = new PathPackResources(extensionInfo, gunPack.path) {
-                private final SecureJar secureJar = SecureJar.from(gunPack.path);
-
-                @NotNull
-                protected Path resolve(String... paths) {
-                    if (paths.length < 1) {
-                        throw new IllegalArgumentException("Missing path");
-                    } else {
-                        return this.secureJar.getPath(String.join("/", paths));
-                    }
-                }
-
-                public IoSupplier<InputStream> getResource(PackType type, Identifier location) {
-                    IoSupplier<InputStream> resource = super.getResource(type, location);
-                    if (resource != null || type != PackType.SERVER_DATA) {
-                        return resource;
-                    }
-                    String path = location.getPath();
-                    if (path.startsWith("recipe/")) {
-                        Identifier legacyLocation = com.tacz.guns.util.IdHelper.id(location.getNamespace(), "recipes/" + path.substring("recipe/".length()));
-                        return super.getResource(type, legacyLocation);
-                    }
-                    return null;
-                }
-
-                public void listResources(PackType type, String namespace, String path, PackResources.ResourceOutput resourceOutput) {
-                    super.listResources(type, namespace, path, resourceOutput);
-                    if (type == PackType.SERVER_DATA) {
-                        if ("recipe".equals(path)) {
-                            super.listResources(type, namespace, "recipes", (location, supplier) -> {
-                                String p = location.getPath();
-                                if (p.startsWith("recipes/")) {
-                                    Identifier normalized = com.tacz.guns.util.IdHelper.id(location.getNamespace(), "recipe/" + p.substring("recipes/".length()));
-                                    resourceOutput.accept(normalized, supplier);
-                                }
-                            });
-                        } else if (path.startsWith("recipe/")) {
-                            String legacyPath = "recipes/" + path.substring("recipe/".length());
-                            super.listResources(type, namespace, legacyPath, (location, supplier) -> {
-                                String p = location.getPath();
-                                if (p.startsWith("recipes/")) {
-                                    Identifier normalized = com.tacz.guns.util.IdHelper.id(location.getNamespace(), "recipe/" + p.substring("recipes/".length()));
-                                    resourceOutput.accept(normalized, supplier);
-                                }
-                            });
-                        }
-                    }
-                }
-            };
+            PackResources packResources = Files.isDirectory(gunPack.path)
+                    ? new PathPackResources(extensionInfo, gunPack.path)
+                    : new FilePackResources.FileResourcesSupplier(gunPack.path).openPrimary(extensionInfo);
             extensionPacks.add(packResources);
         }
 

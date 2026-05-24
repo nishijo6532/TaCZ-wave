@@ -5,6 +5,7 @@ import com.tacz.guns.api.client.event.SwapItemWithOffHand;
 import com.tacz.guns.api.client.gameplay.IClientPlayerGunOperator;
 import com.tacz.guns.api.item.IAnimationItem;
 import com.tacz.guns.api.item.IGun;
+import com.tacz.guns.client.resource.ClientIndexManager;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.world.entity.player.Inventory;
@@ -17,6 +18,9 @@ import net.minecraftforge.fml.common.Mod;
 
 @Mod.EventBusSubscriber(value = Dist.CLIENT, modid = GunMod.MOD_ID)
 public class InventoryEvent {
+    private static final int HOTBAR_WARM_UP_INTERVAL_TICKS = 7;
+    private static final int BACKPACK_WARM_UP_INTERVAL_TICKS = 41;
+
     // 逕ｨ莠主・譫ｪ騾ｻ霎・
     private static int oldHotbarSelected = -1;
     private static ItemStack oldHotbarSelectItem = ItemStack.EMPTY;
@@ -29,6 +33,7 @@ public class InventoryEvent {
     @SubscribeEvent
     public static void onPlayerChangeSelect(TickEvent.ClientTickEvent.Post event) {
         onPlayerChangeSelect();
+        warmUpInventoryModels();
     }
 
     private static void onPlayerChangeSelect() {
@@ -40,6 +45,7 @@ public class InventoryEvent {
         int selectedSlot = inventory.getSelectedSlot();
         // 邇ｩ螳ｶ蛻・困騾我ｸｭ譯・噪諠・・
         if (oldHotbarSelected != selectedSlot) {
+            ClientIndexManager.warmUpItem(inventory.getItem(selectedSlot));
             if (oldHotbarSelected == -1) {
                 IClientPlayerGunOperator.fromLocalPlayer(player).draw(ItemStack.EMPTY);
             } else {
@@ -63,6 +69,19 @@ public class InventoryEvent {
 
         if (!ItemStack.matches(oldHotbarSelectItem, currentItem)) {
             oldHotbarSelectItem = currentItem.copy();
+        }
+    }
+
+    private static void warmUpInventoryModels() {
+        LocalPlayer player = Minecraft.getInstance().player;
+        if (player == null) {
+            return;
+        }
+        if (player.tickCount % HOTBAR_WARM_UP_INTERVAL_TICKS == 0) {
+            ClientIndexManager.warmUpEquippedAndHotbarModels();
+        }
+        if (player.tickCount % BACKPACK_WARM_UP_INTERVAL_TICKS == 0) {
+            ClientIndexManager.warmUpBackpackModels();
         }
     }
 

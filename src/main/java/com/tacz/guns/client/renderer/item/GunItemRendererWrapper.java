@@ -144,7 +144,7 @@ public class GunItemRendererWrapper extends AnimateGeoItemRenderer<BedrockGunMod
 
     private static Vector3f resolveShotMuzzleOffset() {
         float aimingProgress = FirstPersonRenderGunEvent.getLastAppliedAimingProgress();
-        Vector3f liveOffset = new Vector3f(muzzleRenderOffset);
+        Vector3f liveOffset = muzzleRenderOffset;
         if (aimingProgress <= HIP_STABLE_AIMING_PROGRESS) {
             return preferStableShotBasis(hipStableMuzzleOffset, hasHipStableMuzzleOffset, liveOffset, MAX_HIP_STABLE_DELTA);
         }
@@ -155,17 +155,17 @@ public class GunItemRendererWrapper extends AnimateGeoItemRenderer<BedrockGunMod
             return liveOffset;
         }
         if (aimingProgress < 0.5F && hasHipStableMuzzleOffset) {
-            return new Vector3f(hipStableMuzzleOffset);
+            return hipStableMuzzleOffset;
         }
         if (aimingProgress >= 0.5F && hasAdsStableMuzzleOffset) {
-            return new Vector3f(adsStableMuzzleOffset);
+            return adsStableMuzzleOffset;
         }
         return liveOffset;
     }
 
     private static Vector3f resolveShotMuzzleOffsetForShot() {
         float aimingProgress = FirstPersonRenderGunEvent.getLastAppliedAimingProgress();
-        Vector3f liveOffset = new Vector3f(muzzleRenderOffset);
+        Vector3f liveOffset = muzzleRenderOffset;
         if (aimingProgress >= ADS_STABLE_AIMING_PROGRESS && hasAdsStableMuzzleOffset) {
             return alignAdsShotOffsetToSightCenter(preferStableShotBasis(adsStableMuzzleOffset, true, liveOffset, MAX_ADS_STABLE_DELTA));
         }
@@ -526,7 +526,7 @@ public class GunItemRendererWrapper extends AnimateGeoItemRenderer<BedrockGunMod
     }
 
     private static boolean acceptsStableMuzzleUpdate(Vector3f stableOffset, Vector3f candidateOffset, float maxDelta) {
-        return stableOffset.distance(candidateOffset) <= maxDelta;
+        return stableOffset.distanceSquared(candidateOffset) <= maxDelta * maxDelta;
     }
 
     private static Vector3f preferStableShotBasis(Vector3f stableOffset, boolean hasStableOffset, Vector3f liveOffset, float maxDelta) {
@@ -534,10 +534,11 @@ public class GunItemRendererWrapper extends AnimateGeoItemRenderer<BedrockGunMod
             return liveOffset;
         }
         if (!isValidLiveShotBasis(liveOffset)) {
-            return new Vector3f(stableOffset);
+            return stableOffset;
         }
-        if (stableOffset.distance(liveOffset) <= maxDelta * 2.0F) {
-            return new Vector3f(stableOffset);
+        float maxStableDistance = maxDelta * 2.0F;
+        if (stableOffset.distanceSquared(liveOffset) <= maxStableDistance * maxStableDistance) {
+            return stableOffset;
         }
         return liveOffset;
     }

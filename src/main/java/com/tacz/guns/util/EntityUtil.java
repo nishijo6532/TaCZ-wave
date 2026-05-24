@@ -4,6 +4,7 @@ import com.tacz.guns.config.util.HeadShotAABBConfigRead;
 import com.tacz.guns.entity.EntityKineticBullet;
 import net.minecraft.resources.Identifier;
 import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.projectile.Projectile;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
@@ -12,11 +13,20 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 import java.util.function.Predicate;
 
 public class EntityUtil {
     private static final Predicate<Entity> PROJECTILE_TARGETS = input -> input != null && input.isPickable() && !input.isSpectator();
+    private static final Map<EntityType<?>, Optional<AABB>> HEADSHOT_AABB_CACHE = new HashMap<>();
+
+    public static void clearHeadshotAabbCache() {
+        HEADSHOT_AABB_CACHE.clear();
+    }
+
     @Nullable
     public static EntityKineticBullet.EntityResult findEntityOnPath(Projectile bulletEntity, Vec3 startVec, Vec3 endVec) {
 
@@ -85,13 +95,10 @@ public class EntityUtil {
             return null;
         }
         Vec3 hitBoxPos = hitPos.subtract(entity.position());
-        Identifier entityId = ForgeRegistries.ENTITY_TYPES.getKey(entity.getType());
+        AABB aabb = getHeadshotAabb(entity);
         // 譛蛾・鄂ｮ逧・ｰ・畑驟咲ｽｮ
-        if (entityId != null) {
-            AABB aabb = HeadShotAABBConfigRead.getAABB(entityId);
-            if (aabb != null) {
-                return new EntityKineticBullet.EntityResult(entity, hitPos, aabb.contains(hitBoxPos));
-            }
+        if (aabb != null) {
+            return new EntityKineticBullet.EntityResult(entity, hitPos, aabb.contains(hitBoxPos));
         }
         // 豐｡譛蛾・鄂ｮ逧・ｻ倩ｮ､扈吩ｸ荳ｪ
         boolean headshot = false;
@@ -100,6 +107,19 @@ public class EntityUtil {
             headshot = true;
         }
         return new EntityKineticBullet.EntityResult(entity, hitPos, headshot);
+    }
+
+    @Nullable
+    private static AABB getHeadshotAabb(Entity entity) {
+        EntityType<?> type = entity.getType();
+        Optional<AABB> cached = HEADSHOT_AABB_CACHE.get(type);
+        if (cached != null) {
+            return cached.orElse(null);
+        }
+        Identifier entityId = ForgeRegistries.ENTITY_TYPES.getKey(type);
+        AABB aabb = entityId == null ? null : HeadShotAABBConfigRead.getAABB(entityId);
+        HEADSHOT_AABB_CACHE.put(type, Optional.ofNullable(aabb));
+        return aabb;
     }
 }
 

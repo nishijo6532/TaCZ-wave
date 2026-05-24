@@ -10,6 +10,7 @@ import com.google.gson.JsonParseException;
 import com.google.gson.JsonPrimitive;
 import com.google.gson.JsonSerializationContext;
 import com.google.gson.JsonSerializer;
+import com.tacz.guns.GunMod;
 import com.tacz.guns.api.client.animation.gltf.AnimationStructure;
 import com.tacz.guns.api.vmlib.LuaAnimationConstant;
 import com.tacz.guns.api.vmlib.LuaGunAnimationConstant;
@@ -35,6 +36,7 @@ import com.tacz.guns.client.resource.serialize.SoundEffectKeyframesSerializer;
 import com.tacz.guns.client.resource.serialize.Vector3fSerializer;
 import com.tacz.guns.resource.CommonAssetsManager;
 import com.tacz.guns.resource.manager.JsonDataManager;
+import com.tacz.guns.resource.manager.LazyJsonDataManager;
 import com.tacz.guns.resource.manager.ScriptManager;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.resources.model.cuboid.ItemTransform;
@@ -81,9 +83,9 @@ public enum ClientAssetsManager {
     // 隴・ｽｹ陜ｮ諤懶ｽｱ諷包ｽ､・ｺ隰ｨ・ｰ隰撰ｽｮ
     private JsonDataManager<BlockDisplay> blockDisplay;
     // 陷ｴ貅ｷ・ｧ蜿･貂戊浣・ｩ霑壼沺・ｨ・｡陜吶・
-    private JsonDataManager<BedrockModelPOJO> bedrockModel;
+    private LazyJsonDataManager<BedrockModelPOJO> bedrockModel;
     // 陜難ｽｺ陝ｯ・ｩ霑壼沺・ｨ・｡陜吝唱蜍倬包ｽｻ
-    private JsonDataManager<BedrockAnimationFile> bedrockAnimation;
+    private LazyJsonDataManager<BedrockAnimationFile> bedrockAnimation;
     // gltf 陷会ｽｨ騾包ｽｻ
     private GltfManager gltfAnimation;
     // 陞ｳ・｢隰鯉ｽｷ驕ｶ・ｯ髢ｼ螢ｽ謔ｽ
@@ -103,8 +105,10 @@ public enum ClientAssetsManager {
             ammoDisplay = register(new DisplayManager<>(AmmoDisplay.class, GSON, "display/ammo", "AmmoDisplayLoader"));
             attachmentDisplay = register(new DisplayManager<>(AttachmentDisplay.class, GSON, "display/attachments", "AttachmentDisplayLoader"));
             blockDisplay = register(new DisplayManager<>(BlockDisplay.class, GSON, "display/blocks", "BlockDisplayLoader"));
-            bedrockModel = register(new JsonDataManager<>(BedrockModelPOJO.class, GSON, "geo_models", "BedrockModelLoader"));
-            bedrockAnimation = register(new JsonDataManager<>(BedrockAnimationFile.class, GSON, new FileToIdConverter("animations", ".animation.json"), "BedrockAnimationLoader"));
+            bedrockModel = register(new LazyJsonDataManager<>(BedrockModelPOJO.class, GSON, "geo_models", "BedrockModelLoader",
+                    id -> GunMod.MOD_ID.equals(id.getNamespace())));
+            bedrockAnimation = register(new LazyJsonDataManager<>(BedrockAnimationFile.class, GSON, new FileToIdConverter("animations", ".animation.json"), "BedrockAnimationLoader",
+                    id -> GunMod.MOD_ID.equals(id.getNamespace())));
             gltfAnimation = register(new GltfManager());
             scriptManager = register(new ScriptManager(new FileToIdConverter("scripts", ".lua"), libList));
             soundAssetsManager = register(new SoundAssetsManager());
