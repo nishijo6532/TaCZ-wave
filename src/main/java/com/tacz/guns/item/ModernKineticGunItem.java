@@ -335,7 +335,15 @@ public class ModernKineticGunItem extends AbstractGunItem implements GunItemData
                 }).ifPresentOrElse(vector2d -> {
                     bullet.shootFromRotation(shooter, pitch, yaw, 0.0F, processedSpeed, vector2d);
                 },() -> {
-                    bullet.shootFromRotation(shooter, pitch, yaw, 0.0F, processedSpeed, inaccuracy);
+                    if (dataHolder.autoFireProfile != null && dataHolder.autoFireProfile.highRpm()) {
+                        Vector2d vector2d = new Vector2d(
+                                dataHolder.autoFireProfile.spreadX(dataHolder.autoShootShotIndex, inaccuracy),
+                                dataHolder.autoFireProfile.spreadY(dataHolder.autoShootShotIndex, inaccuracy)
+                        );
+                        bullet.shootFromRotation(shooter, pitch, yaw, 0.0F, processedSpeed, vector2d);
+                    } else {
+                        bullet.shootFromRotation(shooter, pitch, yaw, 0.0F, processedSpeed, inaccuracy);
+                    }
                 });
     }
 

@@ -305,7 +305,7 @@ public class ModernKineticGunScriptAPI {
      * @return 蠑蟋区困蠑ｹ蛻ｰ邇ｰ蝨ｨ扈丞紙逧・慮髣ｴ・悟黒菴堺ｸｺ ms
      */
     public int consumeAmmoFromPlayerForShoot(int neededAmount) {
-        if (useInventoryAmmo() && !isShootingNeedConsumeAmmo()) {
+        if (useInventoryAmmo() && !IGunOperator.fromLivingEntity(shooter).needCheckAmmo()) {
             return neededAmount;
         }
         if (abstractGunItem.useDummyAmmo(itemStack)) {
@@ -415,6 +415,36 @@ public class ModernKineticGunScriptAPI {
      */
     public int getFireMode() {
         return abstractGunItem.getFireMode(itemStack).ordinal();
+    }
+
+    public float getChargeProgress() {
+        return dataHolder.chargeProgress;
+    }
+
+    public float getMaxCharge() {
+        ChargeData chargeData = getChargeData();
+        return chargeData == null ? 0f : chargeData.getMaxCharge();
+    }
+
+    public float getFireThreshold() {
+        ChargeData chargeData = getChargeData();
+        return chargeData == null ? 0f : chargeData.getFireThreshold();
+    }
+
+    public float getChargeRatio() {
+        float maxCharge = getMaxCharge();
+        if (maxCharge <= 0f) {
+            return 0f;
+        }
+        return Mth.clamp(getChargeProgress() / maxCharge, 0f, 1f);
+    }
+
+    private ChargeData getChargeData() {
+        CommonGunIndex index = getGunIndex();
+        if (index == null) {
+            return null;
+        }
+        return index.getGunData().getChargeData(abstractGunItem.getFireMode(itemStack));
     }
 
     /**

@@ -27,7 +27,7 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 
 public class NetworkHandler {
-    private static final int VERSION = 104;
+    private static final int VERSION = 105;
 
     public static final SimpleChannel HANDSHAKE_CHANNEL = createChannel("handshake");
     public static final SimpleChannel CHANNEL = createChannel("network");
@@ -57,6 +57,7 @@ public class NetworkHandler {
 
     public static void init() {
         registerPlayMessage(ClientMessagePlayerShoot.class, ClientMessagePlayerShoot::encode, ClientMessagePlayerShoot::decode, ClientMessagePlayerShoot::handle, NetworkDirection.PLAY_TO_SERVER);
+        registerPlayMessage(ClientMessagePlayerAutoShoot.class, ClientMessagePlayerAutoShoot::encode, ClientMessagePlayerAutoShoot::decode, ClientMessagePlayerAutoShoot::handle, NetworkDirection.PLAY_TO_SERVER);
         registerPlayMessage(ClientMessagePlayerReloadGun.class, ClientMessagePlayerReloadGun::encode, ClientMessagePlayerReloadGun::decode, ClientMessagePlayerReloadGun::handle, NetworkDirection.PLAY_TO_SERVER);
         registerPlayMessage(ClientMessagePlayerCancelReload.class, ClientMessagePlayerCancelReload::encode, ClientMessagePlayerCancelReload::decode, ClientMessagePlayerCancelReload::handle, NetworkDirection.PLAY_TO_SERVER);
         registerPlayMessage(ClientMessagePlayerFireSelect.class, ClientMessagePlayerFireSelect::encode, ClientMessagePlayerFireSelect::decode, ClientMessagePlayerFireSelect::handle, NetworkDirection.PLAY_TO_SERVER);

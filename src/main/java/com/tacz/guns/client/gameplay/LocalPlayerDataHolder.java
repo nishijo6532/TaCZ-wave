@@ -1,8 +1,11 @@
 package com.tacz.guns.client.gameplay;
 
+import com.tacz.guns.GunMod;
 import com.tacz.guns.api.entity.IGunOperator;
 import com.tacz.guns.api.entity.ReloadState;
 import com.tacz.guns.api.item.gun.FireMode;
+import com.tacz.guns.network.NetworkHandler;
+import com.tacz.guns.network.message.ClientMessageSyncBaseTimestamp;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.resources.Identifier;
 
@@ -37,6 +40,8 @@ public class LocalPlayerDataHolder {
     @Nullable
     public volatile FireMode clientShootFireMode = null;
     public volatile boolean isShootRecorded = true;
+    public float chargeProgress = 0f;
+    public boolean isCharging = false;
     /**
      * 这个状态锁表示：任意时刻，正在进行的枪械操作只能为一个。
      * 主要用于防止客户端操作表现效果重复执行。
@@ -77,6 +82,15 @@ public class LocalPlayerDataHolder {
 
     public LocalPlayerDataHolder(LocalPlayer player) {
         this.player = player;
+    }
+
+    public void ensureClientBaseTimestampSynced() {
+        if (clientBaseTimestamp >= 0L) {
+            return;
+        }
+        clientBaseTimestamp = System.currentTimeMillis();
+        NetworkHandler.sendToServer(new ClientMessageSyncBaseTimestamp());
+        GunMod.LOGGER.debug("ShootTrace[client] initialized missing base timestamp: {}", clientBaseTimestamp);
     }
 
     /**
@@ -127,10 +141,13 @@ public class LocalPlayerDataHolder {
      */
     public void reset() {
         // 重置客户端的 shoot 时间戳
+        clientBaseTimestamp = -1;
         isShootRecorded = true;
         clientShootTimestamp = -1;
         clientShootGunId = null;
         clientShootFireMode = null;
+        chargeProgress = 0f;
+        isCharging = false;
         // 重置客户端瞄准状态
         clientIsAiming = false;
         clientAimingProgress = 0;

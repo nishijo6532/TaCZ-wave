@@ -98,6 +98,12 @@ public interface IClientPlayerGunOperator {
 
     void resetDraw();
 
+    boolean chargeShoot(boolean isCharge);
+
+    float getChargeProgress();
+
+    boolean isCharging();
+
     final class FallbackOperator implements IClientPlayerGunOperator {
         private static final Map<LocalPlayer, FallbackOperator> INSTANCES = new WeakHashMap<>();
         private final LocalPlayerDataHolder data;
@@ -209,6 +215,21 @@ public interface IClientPlayerGunOperator {
         @Override
         public void resetDraw() {
             draw.readyToDraw = false;
+        }
+
+        @Override
+        public boolean chargeShoot(boolean isCharge) {
+            return shoot.chargeShoot(isCharge);
+        }
+
+        @Override
+        public float getChargeProgress() {
+            return data.chargeProgress;
+        }
+
+        @Override
+        public boolean isCharging() {
+            return data.isCharging;
         }
     }
 }

@@ -106,6 +106,13 @@ public class ShooterDataHolder {
     public LuaValue scriptData = null;
 
     public long heatTimestamp = -1;
+    public float chargeProgress = 0f;
+    public boolean isAutoShooting = false;
+    public long autoShootLastNanos = -1L;
+    public double autoShootAccumulator = 0;
+    public int autoShootShotIndex = 0;
+    @Nullable
+    public AutoFireProfile autoFireProfile = null;
     /**
      * 配件修改过的各种属性缓存
      */
@@ -132,5 +139,11 @@ public class ShooterDataHolder {
         shootCount = 0;
         scriptData = null;
         heatTimestamp = -1;
+        chargeProgress = 0f;
+        isAutoShooting = false;
+        autoShootLastNanos = -1L;
+        autoShootAccumulator = 0;
+        autoShootShotIndex = 0;
+        autoFireProfile = null;
     }
 }

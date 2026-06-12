@@ -17,6 +17,9 @@ import com.tacz.guns.resource.modifier.AttachmentCacheProperty;
 import com.tacz.guns.resource.modifier.AttachmentPropertyManager;
 import com.tacz.guns.resource.modifier.custom.RpmModifier;
 import com.tacz.guns.resource.pojo.data.gun.Bolt;
+import com.tacz.guns.resource.pojo.data.gun.BurstData;
+import com.tacz.guns.resource.pojo.data.gun.ChargeData;
+import com.tacz.guns.resource.pojo.data.gun.ChargeType;
 import com.tacz.guns.util.ForgeEventCompat;
 import net.minecraft.resources.Identifier;
 import net.minecraft.server.MinecraftServer;
@@ -33,6 +36,7 @@ import java.util.Optional;
 import java.util.function.Supplier;
 
 public class LivingEntityShoot {
+    private static final int MAX_AUTO_SHOTS_PER_TICK = 8;
     private final LivingEntity shooter;
     private final ShooterDataHolder data;
     private final LivingEntityDrawGun draw;
@@ -44,6 +48,14 @@ public class LivingEntityShoot {
     }
 
     public ShootResult shoot(Supplier<Float> pitch, Supplier<Float> yaw, long timestamp) {
+        return shoot(pitch, yaw, timestamp, 0f, false);
+    }
+
+    public ShootResult shoot(Supplier<Float> pitch, Supplier<Float> yaw, long timestamp, float chargeProgress) {
+        return shoot(pitch, yaw, timestamp, chargeProgress, true);
+    }
+
+    private ShootResult shoot(Supplier<Float> pitch, Supplier<Float> yaw, long timestamp, float chargeProgress, boolean hasChargeContext) {
         syncCurrentGunItemWithMainHandGun();
         if (data.currentGunItem == null) {
             return ShootResult.NOT_DRAW;
@@ -71,7 +83,8 @@ public class LivingEntityShoot {
         long serverShootInterval = gunIndex.getGunData().getShootInterval(this.shooter, currentFireMode, currentGunItem);
         int baseRpm = gunIndex.getGunData().getRoundsPerMinute(currentFireMode);
         AttachmentCacheProperty cacheProperty = IGunOperator.fromLivingEntity(shooter).getCacheProperty();
-        Integer cacheRpm = cacheProperty == null ? null : Mth.clamp(cacheProperty.<Integer>getCache(RpmModifier.ID), 1, 1200);
+        Integer rawCacheRpm = cacheProperty == null ? null : cacheProperty.getCache(RpmModifier.ID);
+        Integer cacheRpm = rawCacheRpm == null ? null : Mth.clamp(rawCacheRpm, 1, 1200);
         if (SyncConfig.SERVER_SHOOT_COOLDOWN_V.get()) {
             // 蛻､譁ｭ蟆・・譏ｯ蜷ｦ豁｣蝨ｨ蜀ｷ蜊ｴ
             long coolDown = getShootCoolDown(timestamp);
@@ -97,6 +110,10 @@ public class LivingEntityShoot {
             }
         }
         // 譽譟･譏ｯ蜷ｦ豁｣蝨ｨ謐｢蠑ｹ
+        ChargeData chargeData = gunIndex.getGunData().getChargeData(currentFireMode);
+        if (hasChargeContext && !isChargeProgressReasonable(chargeData, chargeProgress)) {
+            return ShootResult.UNKNOWN_FAIL;
+        }
         if (data.reloadStateType.isReloading()) {
             return ShootResult.IS_RELOADING;
         }
@@ -157,6 +174,7 @@ public class LivingEntityShoot {
         data.lastShootTimestamp = data.shootTimestamp;
         data.heatTimestamp = System.currentTimeMillis();
         data.shootTimestamp = timestamp;
+        data.chargeProgress = validateChargeProgress(chargeData, chargeProgress, hasChargeContext);
         data.lastShootGunId = gunId;
         data.lastShootFireMode = currentFireMode;
         GunMod.LOGGER.debug("ShootTrace[server] shoot accepted: gunId={}, fireMode={}, reqTs={}, shootTs={}, lastShootTs={}",
@@ -166,6 +184,163 @@ public class LivingEntityShoot {
             logicGun.shoot(data, currentGunItem, pitch, yaw, shooter);
         }
         return ShootResult.SUCCESS;
+    }
+
+    public void tickAutoShoot(Supplier<Float> pitch, Supplier<Float> yaw) {
+        if (!data.isAutoShooting) {
+            return;
+        }
+        syncCurrentGunItemWithMainHandGun();
+        if (data.currentGunItem == null) {
+            stopAutoShoot();
+            return;
+        }
+        ItemStack currentGunItem = resolveCurrentGunItem();
+        if (!(currentGunItem.getItem() instanceof IGun gun)) {
+            stopAutoShoot();
+            return;
+        }
+        FireMode fireMode = gun.getFireMode(currentGunItem);
+        if (!isAutoShootMode(fireMode, gun, currentGunItem)) {
+            stopAutoShoot();
+            return;
+        }
+        Optional<CommonGunIndex> gunIndexOptional = TimelessAPI.getCommonGunIndex(gun.getGunId(currentGunItem));
+        if (gunIndexOptional.isEmpty()) {
+            stopAutoShoot();
+            return;
+        }
+        CommonGunIndex gunIndex = gunIndexOptional.get();
+        if (data.autoFireProfile == null) {
+            data.autoFireProfile = AutoFireProfile.create(currentGunItem, gun, gunIndex, IGunOperator.fromLivingEntity(shooter).getCacheProperty());
+        }
+        if (data.autoFireProfile.highRpm()) {
+            tickHighRpmAutoShoot(pitch, yaw, currentGunItem, fireMode, gunIndex);
+            return;
+        }
+        if (getShootCoolDown() > 5) {
+            return;
+        }
+        ShootResult result = shoot(pitch, yaw, System.currentTimeMillis() - data.baseTimestamp);
+        if (shouldStopAutoShoot(result)) {
+            stopAutoShoot();
+        }
+    }
+
+    private void tickHighRpmAutoShoot(Supplier<Float> pitch, Supplier<Float> yaw, ItemStack currentGunItem, FireMode fireMode, CommonGunIndex gunIndex) {
+        long now = System.nanoTime();
+        if (data.autoShootLastNanos < 0L) {
+            data.autoShootLastNanos = now;
+            data.autoShootAccumulator = Math.max(data.autoShootAccumulator, 1.0);
+        } else {
+            long elapsed = Math.max(0L, now - data.autoShootLastNanos);
+            data.autoShootLastNanos = now;
+            long intervalMs = Math.max(1L, gunIndex.getGunData().getShootInterval(shooter, fireMode, currentGunItem));
+            double shotsPerNano = 1.0 / (intervalMs * 1_000_000.0);
+            data.autoShootAccumulator += elapsed * shotsPerNano;
+        }
+        int shotCount = Mth.clamp((int) Math.floor(data.autoShootAccumulator), 0, MAX_AUTO_SHOTS_PER_TICK);
+        if (shotCount <= 0) {
+            return;
+        }
+        long intervalMs = Math.max(1L, gunIndex.getGunData().getShootInterval(shooter, fireMode, currentGunItem));
+        long nowTimestamp = System.currentTimeMillis() - data.baseTimestamp;
+        for (int i = 0; i < shotCount; i++) {
+            long timestamp = nowTimestamp - (long) (shotCount - 1 - i) * intervalMs;
+            ShootResult result = shoot(pitch, yaw, timestamp);
+            if (result == ShootResult.SUCCESS) {
+                data.autoShootAccumulator -= 1.0;
+                data.autoShootShotIndex++;
+                continue;
+            }
+            if (result != ShootResult.COOL_DOWN) {
+                stopAutoShoot();
+                return;
+            }
+        }
+    }
+
+    private boolean shouldStopAutoShoot(ShootResult result) {
+        return switch (result) {
+            case SUCCESS, COOL_DOWN, IS_SPRINTING, IS_DRAWING, IS_BOLTING, IS_MELEE, NETWORK_FAIL -> false;
+            default -> true;
+        };
+    }
+
+    private void stopAutoShoot() {
+        data.isAutoShooting = false;
+        data.autoShootLastNanos = -1L;
+        data.autoShootAccumulator = 0;
+        data.autoShootShotIndex = 0;
+        data.autoFireProfile = null;
+    }
+
+    public static boolean isAutoShootMode(FireMode fireMode, IGun gun, ItemStack gunItem) {
+        if (fireMode == FireMode.AUTO) {
+            return true;
+        }
+        if (fireMode == FireMode.BURST) {
+            return TimelessAPI.getCommonGunIndex(gun.getGunId(gunItem))
+                    .map(index -> {
+                        BurstData burstData = index.getGunData().getBurstData();
+                        return burstData != null && burstData.isContinuousShoot();
+                    })
+                    .orElse(false);
+        }
+        return false;
+    }
+
+    private boolean isChargeProgressReasonable(ChargeData chargeData, float chargeProgress) {
+        final float tolerance = 0.001f;
+        if (!Float.isFinite(chargeProgress)) {
+            return false;
+        }
+        if (chargeData == null) {
+            return Math.abs(chargeProgress) <= tolerance;
+        }
+        if (chargeProgress < -tolerance) {
+            return false;
+        }
+        float minimumProgress = Math.min(chargeData.getFireThreshold(), chargeData.getMaxCharge());
+        if (chargeProgress + tolerance < minimumProgress) {
+            return false;
+        }
+        return chargeProgress <= getMaxReasonableChargeProgress(chargeData) + tolerance;
+    }
+
+    private float getMaxReasonableChargeProgress(ChargeData chargeData) {
+        final float extraTicks = 4f;
+        float startProgress = getChargeProgressAfterLastFire(chargeData);
+        float elapsedTicks = Math.max(getChargeElapsedMillis() / 50f, 0f) + extraTicks;
+        float maxProgress = startProgress + elapsedTicks * Math.max(chargeData.getIncreasePerTick(), 0f);
+        return Math.min(maxProgress, chargeData.getMaxCharge());
+    }
+
+    private float getChargeProgressAfterLastFire(ChargeData chargeData) {
+        if (data.shootTimestamp < 0) {
+            return 0f;
+        }
+        if (chargeData.getChargeType() == ChargeType.DELAY) {
+            return 0f;
+        }
+        return Math.max(0f, data.chargeProgress - chargeData.getDecreaseOnFire());
+    }
+
+    private long getChargeElapsedMillis() {
+        if (data.shootTimestamp >= 0) {
+            return System.currentTimeMillis() - (data.baseTimestamp + data.shootTimestamp);
+        }
+        if (data.drawTimestamp >= 0) {
+            return System.currentTimeMillis() - data.drawTimestamp;
+        }
+        return 0L;
+    }
+
+    private float validateChargeProgress(ChargeData chargeData, float chargeProgress, boolean hasChargeContext) {
+        if (!hasChargeContext || !Float.isFinite(chargeProgress) || chargeData == null) {
+            return 0f;
+        }
+        return Mth.clamp(chargeProgress, 0f, chargeData.getMaxCharge());
     }
 
     /**

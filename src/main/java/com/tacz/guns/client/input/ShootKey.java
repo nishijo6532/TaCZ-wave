@@ -9,6 +9,9 @@ import com.tacz.guns.api.item.IGun;
 import com.tacz.guns.api.item.gun.FireMode;
 import com.tacz.guns.client.gameplay.LocalPlayerSprint;
 import com.tacz.guns.client.sound.SoundPlayManager;
+import com.tacz.guns.entity.shooter.LivingEntityShoot;
+import com.tacz.guns.network.NetworkHandler;
+import com.tacz.guns.network.message.ClientMessagePlayerAutoShoot;
 import com.tacz.guns.util.KeyMappingCompat;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
@@ -36,6 +39,8 @@ public class ShootKey {
             GLFW.GLFW_MOUSE_BUTTON_LEFT,
             "key.category.tacz");
     private static boolean lastTimeShootSuccess = false;
+    private static boolean autoShootSent = false;
+    private static boolean autoShootInitialShotPending = false;
     private static Identifier lastShootGunId = null;
     private static long lastShootTraceLogAt = 0L;
 
@@ -51,6 +56,7 @@ public class ShootKey {
 
     private static void autoShoot(boolean isEndPhase) {
         if (!isInGame()) {
+            stopServerAutoShoot();
             return;
         }
         if (!isEndPhase) {
@@ -62,6 +68,7 @@ public class ShootKey {
         LocalPlayer player = mc.player;
         if (player == null || player.isSpectator()) {
             lastShootGunId = null;
+            stopServerAutoShoot();
             return;
         }
         ItemStack mainHandItem = player.getMainHandItem();
@@ -71,26 +78,34 @@ public class ShootKey {
                 Identifier previousGunId = lastShootGunId;
                 lastShootGunId = currentGunId;
                 lastTimeShootSuccess = false;
+                stopServerAutoShoot();
                 SoundPlayManager.resetDryFireSound();
                 GunMod.LOGGER.debug("ShootTrace[client-input] gun switch: {} -> {}", previousGunId, currentGunId);
             }
             FireMode fireMode = iGun.getFireMode(mainHandItem);
-            boolean isBurstAuto = fireMode == FireMode.BURST && TimelessAPI.getCommonGunIndex(iGun.getGunId(mainHandItem))
-                    .map(index -> index.getGunData().getBurstData().isContinuousShoot())
-                    .orElse(false);
+            boolean isAutoMode = LivingEntityShoot.isAutoShootMode(fireMode, iGun, mainHandItem);
+            boolean useServerAuto = shouldUseServerAuto(iGun, mainHandItem, fireMode);
             IClientPlayerGunOperator operator = IClientPlayerGunOperator.fromLocalPlayer(player);
-            if (SHOOT_KEY.isDown()) {
-                // 閭ｽ蠑轣ｫ譌ｶ遖∵ｭ｢蜀ｲ蛻ｺ
+            boolean isShootDown = SHOOT_KEY.isDown();
+            if (operator.chargeShoot(isShootDown)) {
+                // 髢ｭ・ｽ陟題ｽ｣・ｫ隴鯉ｽｶ驕問扱・ｭ・｢陷・ｲ陋ｻ・ｺ
                 LocalPlayerSprint.stopSprint = true;
 
-                if (fireMode != FireMode.AUTO && !isBurstAuto && lastTimeShootSuccess) {
-                    // 髱槫・閾ｪ蜉ｨ諠・・・檎ｦ∵ｭ｢霑樒ｻｭ蠑轣ｫ
+                if (!isAutoMode && lastTimeShootSuccess) {
+                    // 鬮ｱ讒ｫ繝ｻ髢ｾ・ｪ陷会ｽｨ隲繝ｻ繝ｻ繝ｻ讙趣ｽｦ竏ｵ・ｭ・｢髴第ｨ抵ｽｻ・ｭ陟題ｽ｣・ｫ
                     return;
+                }
+                if (useServerAuto && !autoShootSent) {
+                    autoShootInitialShotPending = true;
                 }
                 ShootResult result = operator.shoot();
                 if (result == ShootResult.SUCCESS) {
                     lastTimeShootSuccess = true;
+                    if (useServerAuto) {
+                        startServerAutoShoot();
+                    }
                 } else {
+                    autoShootInitialShotPending = false;
                     long now = System.currentTimeMillis();
                     if (now - lastShootTraceLogAt >= 250L) {
                         lastShootTraceLogAt = now;
@@ -98,13 +113,18 @@ public class ShootKey {
                                 currentGunId, fireMode, result, lastTimeShootSuccess);
                     }
                 }
+            }
+            if (isShootDown) {
+                LocalPlayerSprint.stopSprint = true;
             } else {
                 lastTimeShootSuccess = false;
+                stopServerAutoShoot();
                 SoundPlayManager.resetDryFireSound();
             }
         } else {
             lastShootGunId = null;
             lastTimeShootSuccess = false;
+            stopServerAutoShoot();
         }
     }
 
@@ -120,21 +140,69 @@ public class ShootKey {
         ItemStack mainHandItem = player.getMainHandItem();
         if (mainHandItem.getItem() instanceof IGun iGun) {
             FireMode fireMode = iGun.getFireMode(mainHandItem);
-            boolean isBurstAuto = fireMode == FireMode.BURST && TimelessAPI.getCommonGunIndex(iGun.getGunId(mainHandItem))
-                    .map(index -> index.getGunData().getBurstData().isContinuousShoot())
-                    .orElse(false);
             IClientPlayerGunOperator operator = IClientPlayerGunOperator.fromLocalPlayer(player);
-            if (fireMode == FireMode.AUTO || isBurstAuto) {
-                return operator.shoot() == ShootResult.SUCCESS;
+            boolean useServerAuto = shouldUseServerAuto(iGun, mainHandItem, fireMode);
+            if (!LivingEntityShoot.isAutoShootMode(fireMode, iGun, mainHandItem)) {
+                return false;
             }
+            if (useServerAuto) {
+                if (!autoShootSent) {
+                    autoShootInitialShotPending = true;
+                }
+                boolean success = operator.shoot() == ShootResult.SUCCESS;
+                if (success) {
+                    startServerAutoShoot();
+                } else {
+                    autoShootInitialShotPending = false;
+                }
+                return success;
+            }
+            return operator.shoot() == ShootResult.SUCCESS;
         }
         return false;
+    }
+
+    private static boolean hasChargeData(IGun gun, ItemStack gunItem, FireMode fireMode) {
+        return TimelessAPI.getClientGunIndex(gun.getGunId(gunItem))
+                .map(index -> index.getGunData().getChargeData(fireMode) != null)
+                .orElse(false);
+    }
+
+    private static boolean shouldUseServerAuto(IGun gun, ItemStack gunItem, FireMode fireMode) {
+        if (!LivingEntityShoot.isAutoShootMode(fireMode, gun, gunItem)) {
+            return false;
+        }
+        if (hasChargeData(gun, gunItem, fireMode)) {
+            return false;
+        }
+        return false;
+    }
+
+    private static void startServerAutoShoot() {
+        if (!autoShootSent) {
+            NetworkHandler.sendToServer(new ClientMessagePlayerAutoShoot(true));
+            autoShootSent = true;
+        }
+    }
+
+    private static void stopServerAutoShoot() {
+        if (autoShootSent) {
+            NetworkHandler.sendToServer(new ClientMessagePlayerAutoShoot(false));
+            autoShootSent = false;
+        }
+        autoShootInitialShotPending = false;
+    }
+
+    public static boolean consumeAutoShootInitialShotPending() {
+        boolean pending = autoShootInitialShotPending;
+        autoShootInitialShotPending = false;
+        return pending;
     }
 
     @SubscribeEvent
     public static void semiShoot(InputEvent.MouseButton.Post event) {
         if (isInGame() && KeyMappingCompat.matchesMouse(SHOOT_KEY, event)) {
-            // 譚ｾ蠑鮠譬・ｼ碁㍾鄂ｮ DryFire 迥ｶ諤・
+            // Reset dry-fire sound when the shoot key is released.
             if (event.getAction() == GLFW.GLFW_RELEASE) {
                 SoundPlayManager.resetDryFireSound();
                 return;
@@ -164,7 +232,7 @@ public class ShootKey {
         if (!isInGame()) {
             return false;
         }
-        // 譚ｾ蠑鮠譬・ｼ碁㍾鄂ｮ DryFire 迥ｶ諤・
+        // Reset dry-fire sound when the shoot key is released.
         if (!isPress) {
             SoundPlayManager.resetDryFireSound();
             return false;

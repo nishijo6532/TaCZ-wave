@@ -434,7 +434,7 @@ public class GunAnimationStateContext extends ItemAnimationStateContext {
     }
 
     public boolean isCharging() {
-        return false;
+        return processGunOperator(IClientPlayerGunOperator::isCharging).orElse(false);
     }
 
     /**

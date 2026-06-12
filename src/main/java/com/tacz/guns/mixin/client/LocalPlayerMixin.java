@@ -106,6 +106,7 @@ public abstract class LocalPlayerMixin implements IClientPlayerGunOperator {
     public void onTickClientSide(CallbackInfo ci) {
         LocalPlayer player = (LocalPlayer) (Object) this;
         if (player.level().isClientSide()) {
+            tac$data.ensureClientBaseTimestampSynced();
             tac$aim.tickAimingProgress();
             tac$crawl.tickCrawl();
             tac$data.tickStateLock();
@@ -141,5 +142,20 @@ public abstract class LocalPlayerMixin implements IClientPlayerGunOperator {
     @Override
     public boolean isReadyToDraw() {
         return tac$draw.readyToDraw;
+    }
+
+    @Override
+    public boolean chargeShoot(boolean isCharge) {
+        return tac$shoot.chargeShoot(isCharge);
+    }
+
+    @Override
+    public float getChargeProgress() {
+        return tac$data.chargeProgress;
+    }
+
+    @Override
+    public boolean isCharging() {
+        return tac$data.isCharging;
     }
 }

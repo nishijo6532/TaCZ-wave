@@ -146,6 +146,12 @@ public abstract class LivingEntityMixin extends Entity implements IGunOperator, 
 
     @Unique
     @Override
+    public ShootResult shoot(Supplier<Float> pitch, Supplier<Float> yaw, long timestamp, float chargeProgress) {
+        return tacz$shoot.shoot(pitch, yaw, timestamp, chargeProgress);
+    }
+
+    @Unique
+    @Override
     public boolean needCheckAmmo() {
         return this.tacz$ammoCheck.needCheckAmmo();
     }
@@ -176,6 +182,7 @@ public abstract class LivingEntityMixin extends Entity implements IGunOperator, 
     @Override
     public void updateCacheProperty(AttachmentCacheProperty cacheProperty) {
         this.tacz$data.cacheProperty = cacheProperty;
+        this.tacz$data.autoFireProfile = null;
     }
 
     @Override
@@ -224,6 +231,7 @@ public abstract class LivingEntityMixin extends Entity implements IGunOperator, 
             this.tacz$melee.scheduleTickMelee();
             this.tacz$speed.updateSpeedModifier();
             this.tacz$heat.tickHeat();
+            this.tacz$shoot.tickAutoShoot(tacz$shooter::getXRot, tacz$shooter::getYRot);
             tacz$shooter.setSprinting(getProcessedSprintStatus(tacz$shooter.isSprinting()));
             // 从服务端同步数据
             ModSyncedEntityData.SHOOT_COOL_DOWN_KEY.setValue(tacz$shooter, this.tacz$shoot.getShootCoolDown());
@@ -255,6 +263,11 @@ public abstract class LivingEntityMixin extends Entity implements IGunOperator, 
             this.tacz$data.lastShootTimestamp = -1L;
             this.tacz$data.lastShootGunId = null;
             this.tacz$data.lastShootFireMode = null;
+            this.tacz$data.isAutoShooting = false;
+            this.tacz$data.autoShootLastNanos = -1L;
+            this.tacz$data.autoShootAccumulator = 0;
+            this.tacz$data.autoShootShotIndex = 0;
+            this.tacz$data.autoFireProfile = null;
         }
     }
 

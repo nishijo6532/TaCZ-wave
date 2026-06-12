@@ -66,7 +66,7 @@ public class RenderCrosshairEvent {
 
         IClientPlayerGunOperator playerGunOperator = IClientPlayerGunOperator.fromLocalPlayer(player);
         TimelessAPI.getGunDisplay(stack).ifPresent(gunIndex -> {
-            if (playerGunOperator.getClientAimingProgress(partialTick) > 0.9) {
+            if (playerGunOperator.getClientAimingProgress(partialTick) > 0.1F) {
                 boolean forceShow = gunIndex.isShowCrosshair();
                 boolean shoulderSurfingForceShow = ShoulderSurfingCompat.showCrosshair();
                 if (!forceShow && !shoulderSurfingForceShow) {
@@ -104,8 +104,9 @@ public class RenderCrosshairEvent {
         int width = window.getGuiScaledWidth();
         int height = window.getGuiScaledHeight();
         Identifier location = CrosshairType.getTextureLocation(RenderConfig.CROSSHAIR_TYPE.get());
-
-        graphics.blit(RenderPipelines.GUI_TEXTURED, location, (int) (width / 2f - 8), (int) (height / 2f - 8), 0, 0, 16, 16, 16, 16);
+        float x = width / 2f - 8;
+        float y = height / 2f - 8;
+        graphics.blit(RenderPipelines.GUI_TEXTURED, location, (int) x, (int) y, 0, 0, 16, 16, 16, 16, 0xE6FFFFFF);
     }
 
     private static void renderHitMarker(GuiGraphicsExtractor graphics, Window window) {

@@ -1,31 +1,31 @@
 modLoader = "javafml"
-loaderVersion = "[46,)"
+loaderVersion = "[64,)"
 license = "GPL-3.0-only / CC BY-NC-ND 4.0 assets"
 
 [[mods]]
 modId = "tacz"
-version = "1.0.1"
+version = "1.1.0"
 displayName = "TaCZ: WAVE Base"
 updateJSONURL = ""
 displayURL = ""
-authors = "Serene Wave Studio | Based on Timeless Squad / MCModderAnchor TaCZ"
+authors = "Serene Wave Studio"
 description = '''
-A Forge 64.0.8 adaptation of Timeless and Classics Guns: Zero for WAVE.
+Unofficial Forge 64.0.8 port of TaCZ for WAVE.
 
-This project keeps the original TaCZ mod id and resource namespace for compatibility.
+Keeps the original tacz mod id and namespace.
 '''
 
 [[dependencies.tacz]]
 modId = "forge"
 mandatory = true
-versionRange = "[46,)"
+versionRange = "[64,)"
 ordering = "NONE"
 side = "BOTH"
 
 [[dependencies.tacz]]
 modId = "minecraft"
 mandatory = true
-versionRange = "[26.1.2,)"
+versionRange = "[26.1.2,26.2,)"
 ordering = "NONE"
 side = "BOTH"
 

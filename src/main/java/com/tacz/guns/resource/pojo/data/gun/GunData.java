@@ -21,6 +21,7 @@ import java.util.Collections;
 import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
+import java.util.EnumMap;
 
 public class GunData {
     @SerializedName("ammo")
@@ -119,6 +120,17 @@ public class GunData {
 
     @SerializedName("script_param")
     private Map<String, Object> scriptParam = null;
+
+    @SerializedName("charging")
+    private EnumMap<FireMode, ChargeData> chargeData = null;
+
+    @Nullable
+    public ChargeData getChargeData(FireMode fireMode) {
+        if (chargeData != null) {
+            return chargeData.get(fireMode);
+        }
+        return null;
+    }
 
     public Identifier getAmmoId() {
         return ammoId;

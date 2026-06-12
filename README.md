@@ -8,7 +8,7 @@ TaCZ: WAVE itself is not finished yet, but I decided to release a version with a
 
 ## Version
 
-`1.0.1`
+`1.1.0`
 
 The mod ID and resource namespace are still kept as `tacz` for compatibility.
 
